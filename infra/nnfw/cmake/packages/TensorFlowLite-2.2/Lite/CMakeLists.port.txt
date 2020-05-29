@@ -1,0 +1,190 @@
+# NOTE The followings SHOULD be defined before using this CMakeLists.txt
+#
+#  'TensorFlowSource_DIR' variable
+#  'FlatBuffersSource_DIR' variable
+#  'NEON2SSESource_DIR' variable
+#  'eigen-2.2' target
+#  'gemmlowp-2.2' target
+#  'farmhash' target
+#  'abseil' target
+#
+message(STATUS "Build TensorFlow Lite from ${TensorFlowSource_DIR}")
+
+set(TENSORFLOW_LITE_BASE ${TensorFlowSource_DIR}/tensorflow/lite)
+
+# //tensorflow/lite/c:common
+file(GLOB TFLITE_SRCS "${TENSORFLOW_LITE_BASE}/c/common.c")
+
+# //tensorflow/lite/schema:schema_fbs
+# auto-generated header file (by flatbuffers)
+
+# //tensorlow/lite/core/api
+# dep: //tensorflow/lite/c:common //tensorflow/lite/schema:schema_fbs
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/core/api/error_reporter.cc"
+                           "${TENSORFLOW_LITE_BASE}/core/api/flatbuffer_conversions.cc"
+                           "${TENSORFLOW_LITE_BASE}/core/api/op_resolver.cc"
+                           "${TENSORFLOW_LITE_BASE}/core/api/tensor_utils.cc")
+
+# //tensorflow/lite:string
+# header-only
+
+# //tensorflow/lite:allocation
+# dep: //tensorflow/lite:string //tensorflow/lite/c:common //tensorlow/lite/core/api
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/allocation.cc"
+                           "${TENSORFLOW_LITE_BASE}/mmap_allocation.cc")
+
+# //tensorflow/lite:graph_info
+# dep: //tensorflow/lite/c:common
+# header-only
+
+# //tensorflow/lite:memory_planner
+# dep: //tensorflow/lite/c:common
+# header-only
+
+# //tensorflow/lite:simple_memory_arena
+# dep: //tensorflow/lite/c:common
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/simple_memory_arena.cc")
+
+# //tensorflow/lite:arena_planner
+# dep: //tensorflow/lite:graph_info //tensorflow/lite:memory_planner //tensorflow/lite:simple_memory_arena
+#      //tensorflow/lite/c:common
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/arena_planner.cc")
+
+# //tensorflow/lite:external_cpu_backend_context
+# dep: //tensorflow/lite/c:common
+list(APPEND ${TFLITE_SRCS} "{TENSORFLOW_LITE_BASE}/external_cpu_backend_context.cc")
+
+# //tensorflow/lite:minimal_logging
+list(APPEND ${TFLITE_SRCS} "{TENSORFLOW_LITE_BASE}/minimal_logging.cc")
+if(ANDROID)
+  list(APPEND ${TFLITE_SRCS} "{TENSORFLOW_LITE_BASE}/minimal_logging_android.cc")
+else(ANDROID)
+  # Linux
+  # TODO Handle more OS
+  list(APPEND ${TFLITE_SRCS} "{TENSORFLOW_LITE_BASE}/minimal_logging_default.cc")
+endif(ANDROID)
+
+# //tensorflow/lite:util
+# dep: //tensorflow/lite/c:common
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/util.cc")
+
+# //tensorflow/lite:version
+# header-only
+
+# //tensorflow/lite:kernel_api
+# header-only
+
+# //tensorflow/lite/kernels:op_macros
+# header-only
+
+# //tensorflow/lite/kernels/internal:compatibility
+# dep: //tensorflow/lite/kernels:op_macros
+# header-only
+
+# //tensorflow/lite/kernels/internal:round
+# header-only
+
+# //tensorflow/lite/kernels/internal:types
+# header-only
+
+# //tensorflow/lite/kernels/internal:quantization_util
+# dep: //tensorflow/lite/kernels/internal:compatibility //tensorflow/lite/kernels/internal:round //tensorflow/lite/kernels/internal:types
+#      //tensorflow/lite/kernels:op_macros
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/kernels/internal/quantization_util.cc" )
+
+# //tensorflow/lite/kernel:kernel_util
+# dep: //tensorflow/lite/c:common //tensorflow/lite/kernels/internal:quantization_util //tensorflow/lite/kernels/internal:round
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/kernel_util.cc" )
+
+# # //tensorflow/lite/nnapi:nnapi_lib
+# header-only
+
+# //tensorflow/lite/nnapi:nnapi_implementation
+# dep: //tensorflow/lite/nnapi:nnapi_lib
+# Support inux and android
+# TODO Handle more OS
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/nnapi/nnapi_implementation.cc")
+
+# //tensorflow/lite/nnapi:nnapi_util
+# dep: //tensorflow/lite/nnapi:nnapi_implementation //tensorflow/lite:util "//tensorflow/lite/c:common
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/nnapi/nnapi_util.cc")
+
+# //tensorflow/lite/delegates/nnapi:nnapi_delegate
+# dep: //tensorflow/lite:allocation //tensorflow/lite:kernal_api //tensorflow/lite:minimal_logging
+#      //tensorflow/lite:util //tensorflow/lite/c:common //tensorflow/lite/kernel:kernel_util
+#      //tensorflow/lite/nnapi:nnapi_implementation //tensorflow/lite/nnapi:nnapi_lib //tensorflow/lite/nnapi:nnapi_util
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/delegates/nnapi/nnapi_delegate.cc"
+                           "${TENSORFLOW_LITE_BASE}/delegates/nnapi/quant_lstm_sup.cc")
+
+# //tensorflow/lite:string_util
+# dep: //tensorflow/lite:string //tensorflow/lite/c:common
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/string_util.cc")
+
+# //tensorflow/lite/kernels/internal:tensor
+# dep: //tensorflow/lite/kernels/internal:types //tensorflow/lite:string_util //tensorflow/lite/c:common
+# header-only
+
+# //tensorflow/lite/experimental/resource
+# dep: //tensorflow/lite:string_util //tensorflow/lite/c:common //tensorflow/lite/kernels/internal:compatibility
+#      //tensorflow/lite/kernels/internal:tensor
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/experimental/resource/resource_variable.cc"
+                           "${TENSORFLOW_LITE_BASE}/experimental/resource/static_hashtable.cc")
+
+# //tensorflow/lite:framework
+# dep: //tensorflow/lite:allocation //tensorflow/lite:arena_planner //tensorflow/lite:external_cpu_backend_context
+#      //tensorflow/lite:graph_info //tensorflow/lite:memory_planner //tensorflow/lite:minimal_logging
+#      //tensorflow/lite:string //tensorflow/lite:type_to_tflitetype //tensorflow/lite:util
+#      //tensorflow/lite:version //tensorflow/lite/c:common //tensorflow/lite/core/api
+#      //tensorflow/lite/delegates/nnapi:nnapi_delegate //tensorflow/lite/experimental/resource //tensorflow/lite/nnapi:nnapi_implementation
+#      //tensorflow/lite/schema:schema_fbs
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/core/subgraph.cc"
+                           "${TENSORFLOW_LITE_BASE}/graph_info.cc"
+                           "${TENSORFLOW_LITE_BASE}/interpreter.cc"
+                           "${TENSORFLOW_LITE_BASE}/model.cc"
+                           "${TENSORFLOW_LITE_BASE}/mutable_op_resolver.cc"
+                           "${TENSORFLOW_LITE_BASE}/optional_debug_tools.cc"
+                           "${TENSORFLOW_LITE_BASE}/stderr_reporter.cc")
+
+# //tensorflow/lite/kernels:tflite_with_ruy
+# Disable ruy
+
+# //tensorflow/lite/kernels:cpu_backend_context
+# dep: //tensorflow/lite/kernels:tflite_with_ruy //tensorflow/lite/kernels:op_macros
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/kernel/cpu_backend_context.cc")
+
+# //tensorflow/lite/experimental/ruy:context
+# Disable ruy
+
+# //tensorflow/lite/experimental/ruy:thread_pool
+# Disable ruy
+
+# //tensorflow/lite/kernels:cpu_backend_threadpool
+# dep: //tensorflow/lite/kernels:cpu_backend_context //tensorflow/lite/kernels:tflite_with_ruy //tensorflow/lite/kernels/internal:compatibility
+#      //tensorflow/lite/kernels/internal:types //tensorflow/lite/experimental/ruy:context //tensorflow/lite/experimental/ruy:thread_pool
+# header-only
+
+# //tensorflow/lite/kernels/internal:optimized
+# dep
+
+# //tensorflow/lite/kernels:eigen_support
+# dep: //tensorflow/lite/kernels:op_macros //tensorflow/lite:arena_planner //tensorflow/lite/c:common
+#      //tensorflow/lite/kernels/internal:optimized
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/eigen_support.cc")
+
+# //tensorflow/lite/kernels:builtin_op_kernels
+# dep: //tensorflow/lite/kernels:cpu_backend_context //tensorflow/lite/kernels:cpu_backend_threadpool //tensorflow/lite/kernels:eigen_support
+#      //tensorflow/lite/kernels:kernel_util //tensorflow/lite/kernels:lstm_eval //tensorflow/lite/kernels:lstm_shared
+#      //tensorflow/lite/kernels:op_macros //tensorflow/lite/kernels:padding //tensorflow/lite:framework
+#      //tensorflow/lite:minimal_logging //tensorflow/lite:string_util //tensorflow/lite/c:common
+#      //tensorflow/lite/kernels/internal:audio_utils //tensorflow/lite/kernels/internal:common //tensorflow/lite/kernels/internal:compatibility
+#      //tensorflow/lite/kernels/internal:cpu_check //tensorflow/lite/kernels/internal:kernel_utils //tensorflow/lite/kernels/internal:optimized
+#      //tensorflow/lite/kernels/internal:optimized_base //tensorflow/lite/kernels/internal:quantization_util //tensorflow/lite/kernels/internal:reference_base
+#      //tensorflow/lite/kernels/internal:strided_slice_logic //tensorflow/lite/kernels/internal:tensor //tensorflow/lite/kernels/internal:tensor_utils
+#      //tensorflow/lite/kernels/internal:types //third_party/eigen3
+
+# //tensorflow/lite/kernels:builtin_ops
+# dep: //tensorflow/lite/kernels:builtin_op_kernels //tensorflow/lite:framework //tensorflow/lite/c:common
+list(APPEND ${TFLITE_SRCS} "${TENSORFLOW_LITE_BASE}/register.cc")
+
+# //tensorflow/lite:tensorflowlite
+# deps: //tensorflow/lite:framework //tensorflow/lite/kernels:builtin_ops

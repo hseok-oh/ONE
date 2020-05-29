@@ -1,0 +1,22 @@
+function(_AbseilSource_import)
+  if(NOT DOWNLOAD_ABSEIL)
+    set(AbseilSource_FOUND FALSE PARENT_SCOPE)
+    return()
+  endif(NOT DOWNLOAD_ABSEIL)
+
+  nnas_include(ExternalSourceTools)
+  nnas_include(OptionTools)
+
+  # NOTE TensorFlow 2.2 downloads abseil from the following URL
+  envoption(EXTERNAL_DOWNLOAD_SERVER "https://github.com")
+  envoption(ABSEIL_2_2_URL ${EXTERNAL_DOWNLOAD_SERVER}/abseil/abseil-cpp/archive/43ef214.tar.gz)
+  ExternalSource_Download(ABSEIL
+    DIRNAME ABSEIL-43ef214
+    ${ABSEIL_2_2_URL}
+  )
+
+  set(AbseilSource_DIR ${ABSEIL_SOURCE_DIR} PARENT_SCOPE)
+  set(AbseilSource_FOUND TRUE PARENT_SCOPE)
+endfunction(_AbseilSource_import)
+
+_AbseilSource_import()
