@@ -1,0 +1,21 @@
+{
+  "name":"pr-cross-runtime-test-release",
+  "concurrentBuild":true,
+
+  "ghprbTrigger": {
+    "displayName":"cross-runtime-test-release",
+    "buildDesc":"PR #$pullId: $abbrTitle (public)",
+    "triggerPhrase":"@nnfw-bot (?i).*test (all|cross-runtime-test-release).*",
+    "skipBuildPhrase":".*(\\[DO NOT MERGE\\]|\\[WIP\\]).*",
+    "blackListLabels":"PR/NO TEST",
+    "excludeFilesRegex":"README.md\ndocs/.*\ncompiler/.*\npackaging/.*\ninfra/nncc/.*\nres/.*\ninfra/jenkins/.*",
+    "completedStatus": {
+      "SUCCESS":"Passed.",
+      "FAILURE":"Failed. Comment \"@nnfw-bot test cross-runtime-test-release\" if you want to rerun"
+    }
+  },
+
+  "groovyBeforeBuild": "scripts/pr/pr-prev-check.groovy",
+
+  "scriptfile": ["scripts/pr/pr-cross-runtime-test-release.groovy"]
+}

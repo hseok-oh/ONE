@@ -1,0 +1,9 @@
+{
+  "jobs": [
+    "conf/pr/cross-runtime-test-release.json"
+  ],
+  "repo": {
+    "repoHttps":"https://github.com/Samsung/ONE",
+    "credential":"nnfw.bot"
+  }
+}
