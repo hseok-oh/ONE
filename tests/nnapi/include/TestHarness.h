@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,40 +14,29 @@
  * limitations under the License.
  */
 
-/* Header-only library for various helpers of test harness
- * See frameworks/ml/nn/runtime/test/TestGenerated.cpp for how this is used.
- */
-#ifndef ANDROID_ML_NN_TOOLS_TEST_GENERATOR_TEST_HARNESS_H
-#define ANDROID_ML_NN_TOOLS_TEST_GENERATOR_TEST_HARNESS_H
+// This header file defines an unified structure for a model under test, and provides helper
+// functions checking test results. Multiple instances of the test model structure will be
+// generated from the model specification files under nn/runtime/test/specs directory.
+// Both CTS and VTS will consume this test structure and convert into their own model and
+// request format.
 
-#include <gmock/gmock-matchers.h>
-#include <gtest/gtest.h>
+#ifndef ANDROID_FRAMEWORKS_ML_NN_TOOLS_TEST_GENERATOR_TEST_HARNESS_TEST_HARNESS_H
+#define ANDROID_FRAMEWORKS_ML_NN_TOOLS_TEST_GENERATOR_TEST_HARNESS_TEST_HARNESS_H
 
-#include <cmath>
+#include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
+#include <iostream>
+#include <limits>
 #include <map>
-#include <tuple>
+#include <memory>
+#include <random>
+#include <string>
+#include <utility>
 #include <vector>
 
-// Fix for onert: define _Float16 for gnu compiler
-#if  __GNUC__ && !__clang__
-#if __ARM_FP16_FORMAT_IEEE || __ARM_FP16_FORMAT_ALTERNATIVE
-#define _Float16 __fp16
-#else // __ARM_FP16_FORMAT_IEEE || __ARM_FP16_FORMAT_ALTERNATIVE
-#define _Float16 float
-#endif // __ARM_FP16_FORMAT_IEEE || __ARM_FP16_FORMAT_ALTERNATIVE
-#endif // __GNUC__ && !__clang__
-
 namespace test_helper {
-
-constexpr const size_t gMaximumNumberOfErrorMessages = 10;
-
-// TODO: Figure out the build dependency to make including "CpuOperationUtils.h" work.
-inline void convertFloat16ToFloat32(const _Float16* input, std::vector<float>* output) {
-    for (size_t i = 0; i < output->size(); ++i) {
-        (*output)[i] = static_cast<float>(input[i]);
-    }
-}
 
 // This class is a workaround for two issues our code relies on:
 // 1. sizeof(bool) is implementation defined.
@@ -64,373 +53,501 @@ class bool8 {
 
 static_assert(sizeof(bool8) == 1, "size of bool8 must be 8 bits");
 
-typedef std::map<int, std::vector<uint32_t>> OperandDimensions;
-typedef std::map<int, std::vector<float>> Float32Operands;
-typedef std::map<int, std::vector<int32_t>> Int32Operands;
-typedef std::map<int, std::vector<uint8_t>> Quant8AsymmOperands;
-typedef std::map<int, std::vector<int16_t>> Quant16SymmOperands;
-typedef std::map<int, std::vector<_Float16>> Float16Operands;
-typedef std::map<int, std::vector<bool8>> Bool8Operands;
-typedef std::map<int, std::vector<int8_t>> Quant8ChannelOperands;
-typedef std::map<int, std::vector<uint16_t>> Quant16AsymmOperands;
-typedef std::map<int, std::vector<int8_t>> Quant8SymmOperands;
-struct MixedTyped {
-    static constexpr size_t kNumTypes = 9;
-    OperandDimensions operandDimensions;
-    Float32Operands float32Operands;
-    Int32Operands int32Operands;
-    Quant8AsymmOperands quant8AsymmOperands;
-    Quant16SymmOperands quant16SymmOperands;
-    Float16Operands float16Operands;
-    Bool8Operands bool8Operands;
-    Quant8ChannelOperands quant8ChannelOperands;
-    Quant16AsymmOperands quant16AsymmOperands;
-    Quant8SymmOperands quant8SymmOperands;
-};
-typedef std::pair<MixedTyped, MixedTyped> MixedTypedExampleType;
+// We need the following enum classes since the test harness can neither depend on NDK nor HIDL
+// definitions.
 
-// Mixed-typed examples
-typedef struct {
-    MixedTypedExampleType operands;
+enum class TestOperandType {
+    FLOAT32 = 0,
+    INT32 = 1,
+    UINT32 = 2,
+    TENSOR_FLOAT32 = 3,
+    TENSOR_INT32 = 4,
+    TENSOR_QUANT8_ASYMM = 5,
+    BOOL = 6,
+    TENSOR_QUANT16_SYMM = 7,
+    TENSOR_FLOAT16 = 8,
+    TENSOR_BOOL8 = 9,
+    FLOAT16 = 10,
+    TENSOR_QUANT8_SYMM_PER_CHANNEL = 11,
+    TENSOR_QUANT16_ASYMM = 12,
+    TENSOR_QUANT8_SYMM = 13,
+    TENSOR_QUANT8_ASYMM_SIGNED = 14,
+    SUBGRAPH = 15,
+};
+
+enum class TestOperandLifeTime {
+    TEMPORARY_VARIABLE = 0,
+    SUBGRAPH_INPUT = 1,
+    SUBGRAPH_OUTPUT = 2,
+    CONSTANT_COPY = 3,
+    CONSTANT_REFERENCE = 4,
+    NO_VALUE = 5,
+    SUBGRAPH = 6,
+    // DEPRECATED. Use SUBGRAPH_INPUT.
+    // This value is used in pre-1.3 VTS tests.
+    MODEL_INPUT = SUBGRAPH_INPUT,
+    // DEPRECATED. Use SUBGRAPH_OUTPUT.
+    // This value is used in pre-1.3 VTS tests.
+    MODEL_OUTPUT = SUBGRAPH_OUTPUT,
+};
+
+enum class TestOperationType {
+    ADD = 0,
+    AVERAGE_POOL_2D = 1,
+    CONCATENATION = 2,
+    CONV_2D = 3,
+    DEPTHWISE_CONV_2D = 4,
+    DEPTH_TO_SPACE = 5,
+    DEQUANTIZE = 6,
+    EMBEDDING_LOOKUP = 7,
+    FLOOR = 8,
+    FULLY_CONNECTED = 9,
+    HASHTABLE_LOOKUP = 10,
+    L2_NORMALIZATION = 11,
+    L2_POOL_2D = 12,
+    LOCAL_RESPONSE_NORMALIZATION = 13,
+    LOGISTIC = 14,
+    LSH_PROJECTION = 15,
+    LSTM = 16,
+    MAX_POOL_2D = 17,
+    MUL = 18,
+    RELU = 19,
+    RELU1 = 20,
+    RELU6 = 21,
+    RESHAPE = 22,
+    RESIZE_BILINEAR = 23,
+    RNN = 24,
+    SOFTMAX = 25,
+    SPACE_TO_DEPTH = 26,
+    SVDF = 27,
+    TANH = 28,
+    BATCH_TO_SPACE_ND = 29,
+    DIV = 30,
+    MEAN = 31,
+    PAD = 32,
+    SPACE_TO_BATCH_ND = 33,
+    SQUEEZE = 34,
+    STRIDED_SLICE = 35,
+    SUB = 36,
+    TRANSPOSE = 37,
+    ABS = 38,
+    ARGMAX = 39,
+    ARGMIN = 40,
+    AXIS_ALIGNED_BBOX_TRANSFORM = 41,
+    BIDIRECTIONAL_SEQUENCE_LSTM = 42,
+    BIDIRECTIONAL_SEQUENCE_RNN = 43,
+    BOX_WITH_NMS_LIMIT = 44,
+    CAST = 45,
+    CHANNEL_SHUFFLE = 46,
+    DETECTION_POSTPROCESSING = 47,
+    EQUAL = 48,
+    EXP = 49,
+    EXPAND_DIMS = 50,
+    GATHER = 51,
+    GENERATE_PROPOSALS = 52,
+    GREATER = 53,
+    GREATER_EQUAL = 54,
+    GROUPED_CONV_2D = 55,
+    HEATMAP_MAX_KEYPOINT = 56,
+    INSTANCE_NORMALIZATION = 57,
+    LESS = 58,
+    LESS_EQUAL = 59,
+    LOG = 60,
+    LOGICAL_AND = 61,
+    LOGICAL_NOT = 62,
+    LOGICAL_OR = 63,
+    LOG_SOFTMAX = 64,
+    MAXIMUM = 65,
+    MINIMUM = 66,
+    NEG = 67,
+    NOT_EQUAL = 68,
+    PAD_V2 = 69,
+    POW = 70,
+    PRELU = 71,
+    QUANTIZE = 72,
+    QUANTIZED_16BIT_LSTM = 73,
+    RANDOM_MULTINOMIAL = 74,
+    REDUCE_ALL = 75,
+    REDUCE_ANY = 76,
+    REDUCE_MAX = 77,
+    REDUCE_MIN = 78,
+    REDUCE_PROD = 79,
+    REDUCE_SUM = 80,
+    ROI_ALIGN = 81,
+    ROI_POOLING = 82,
+    RSQRT = 83,
+    SELECT = 84,
+    SIN = 85,
+    SLICE = 86,
+    SPLIT = 87,
+    SQRT = 88,
+    TILE = 89,
+    TOPK_V2 = 90,
+    TRANSPOSE_CONV_2D = 91,
+    UNIDIRECTIONAL_SEQUENCE_LSTM = 92,
+    UNIDIRECTIONAL_SEQUENCE_RNN = 93,
+    RESIZE_NEAREST_NEIGHBOR = 94,
+    QUANTIZED_LSTM = 95,
+    IF = 96,
+    WHILE = 97,
+    ELU = 98,
+    HARD_SWISH = 99,
+    FILL = 100,
+    RANK = 101,
+};
+
+enum class TestHalVersion { UNKNOWN, V1_0, V1_1, V1_2, V1_3 };
+
+// Manages the data buffer for a test operand.
+class TestBuffer {
+   public:
+    // The buffer must be aligned on a boundary of a byte size that is a multiple of the element
+    // type byte size. In NNAPI, 4-byte boundary should be sufficient for all current data types.
+    static constexpr size_t kAlignment = 4;
+
+    // Create the buffer of a given size and initialize from data.
+    // If data is nullptr, the allocated memory stays uninitialized.
+    TestBuffer(size_t size = 0, const void* data = nullptr) : mSize(size) {
+        if (size > 0) {
+            // The size for aligned_alloc must be an integral multiple of alignment.
+            mBuffer.reset(aligned_alloc(kAlignment, alignedSize()), free);
+            if (data) memcpy(mBuffer.get(), data, size);
+        }
+    }
+
+    // Explicitly create a deep copy.
+    TestBuffer copy() const { return TestBuffer(mSize, mBuffer.get()); }
+
+    // Factory method creating the buffer from a typed vector.
+    template <typename T>
+    static TestBuffer createFromVector(const std::vector<T>& vec) {
+        return TestBuffer(vec.size() * sizeof(T), vec.data());
+    }
+
+    // Factory method for creating a randomized buffer with "size" number of
+    // bytes.
+    template <typename T>
+    static TestBuffer createFromRng(size_t size, std::default_random_engine* gen) {
+        static_assert(kAlignment % sizeof(T) == 0);
+        TestBuffer testBuffer(size);
+        std::uniform_int_distribution<T> dist{};
+        const size_t adjustedSize = testBuffer.alignedSize() / sizeof(T);
+        std::generate_n(testBuffer.getMutable<T>(), adjustedSize, [&] { return dist(*gen); });
+        return testBuffer;
+    }
+
+    template <typename T>
+    const T* get() const {
+        return reinterpret_cast<const T*>(mBuffer.get());
+    }
+
+    template <typename T>
+    T* getMutable() {
+        return reinterpret_cast<T*>(mBuffer.get());
+    }
+
+    // Returns the byte size of the buffer.
+    size_t size() const { return mSize; }
+
+    // Returns the byte size that is aligned to kAlignment.
+    size_t alignedSize() const { return ((mSize + kAlignment - 1) / kAlignment) * kAlignment; }
+
+    bool operator==(std::nullptr_t) const { return mBuffer == nullptr; }
+    bool operator!=(std::nullptr_t) const { return mBuffer != nullptr; }
+
+   private:
+    std::shared_ptr<void> mBuffer;
+    size_t mSize = 0;
+};
+
+struct TestSymmPerChannelQuantParams {
+    std::vector<float> scales;
+    uint32_t channelDim = 0;
+};
+
+struct TestOperand {
+    TestOperandType type;
+    std::vector<uint32_t> dimensions;
+    uint32_t numberOfConsumers;
+    float scale = 0.0f;
+    int32_t zeroPoint = 0;
+    TestOperandLifeTime lifetime;
+    TestSymmPerChannelQuantParams channelQuant;
+
+    // For SUBGRAPH_OUTPUT only. Set to true to skip the accuracy check on this operand.
+    bool isIgnored = false;
+
+    // For CONSTANT_COPY/REFERENCE and SUBGRAPH_INPUT, this is the data set in model and request.
+    // For SUBGRAPH_OUTPUT, this is the expected results.
+    // For TEMPORARY_VARIABLE and NO_VALUE, this is nullptr.
+    TestBuffer data;
+};
+
+struct TestOperation {
+    TestOperationType type;
+    std::vector<uint32_t> inputs;
+    std::vector<uint32_t> outputs;
+};
+
+struct TestSubgraph {
+    std::vector<TestOperand> operands;
+    std::vector<TestOperation> operations;
+    std::vector<uint32_t> inputIndexes;
+    std::vector<uint32_t> outputIndexes;
+};
+
+struct TestModel {
+    TestSubgraph main;
+    std::vector<TestSubgraph> referenced;
+    bool isRelaxed = false;
+
+    // Additional testing information and flags associated with the TestModel.
+
     // Specifies the RANDOM_MULTINOMIAL distribution tolerance.
     // If set to greater than zero, the input is compared as log-probabilities
     // to the output and must be within this tolerance to pass.
-    float expectedMultinomialDistributionTolerance = 0.0;
-} MixedTypedExample;
+    float expectedMultinomialDistributionTolerance = 0.0f;
 
-// Go through all index-value pairs of a given input type
-template <typename T>
-inline void for_each(const std::map<int, std::vector<T>>& idx_and_data,
-                     std::function<void(int, const std::vector<T>&)> execute) {
-    for (auto& i : idx_and_data) {
-        execute(i.first, i.second);
-    }
-}
+    // If set to true, the TestModel specifies a validation test that is expected to fail during
+    // compilation or execution.
+    bool expectFailure = false;
 
-// non-const variant of for_each
-template <typename T>
-inline void for_each(std::map<int, std::vector<T>>& idx_and_data,
-                     std::function<void(int, std::vector<T>&)> execute) {
-    for (auto& i : idx_and_data) {
-        execute(i.first, i.second);
-    }
-}
+    // The minimum supported HAL version.
+    TestHalVersion minSupportedVersion = TestHalVersion::UNKNOWN;
 
-// Go through all index-value pairs of a given input type
-template <typename T>
-inline void for_each(const std::map<int, std::vector<T>>& golden,
-                     std::map<int, std::vector<T>>& test,
-                     std::function<void(int, const std::vector<T>&, std::vector<T>&)> execute) {
-    for_each<T>(golden, [&test, &execute](int index, const std::vector<T>& g) {
-        auto& t = test[index];
-        execute(index, g, t);
-    });
-}
-
-// Go through all index-value pairs of a given input type
-template <typename T>
-inline void for_each(
-        const std::map<int, std::vector<T>>& golden, const std::map<int, std::vector<T>>& test,
-        std::function<void(int, const std::vector<T>&, const std::vector<T>&)> execute) {
-    for_each<T>(golden, [&test, &execute](int index, const std::vector<T>& g) {
-        auto t = test.find(index);
-        ASSERT_NE(t, test.end());
-        execute(index, g, t->second);
-    });
-}
-
-// internal helper for for_all
-template <typename T>
-inline void for_all_internal(std::map<int, std::vector<T>>& idx_and_data,
-                             std::function<void(int, void*, size_t)> execute_this) {
-    for_each<T>(idx_and_data, [&execute_this](int idx, std::vector<T>& m) {
-        execute_this(idx, static_cast<void*>(m.data()), m.size() * sizeof(T));
-    });
-}
-
-// Go through all index-value pairs of all input types
-// expects a functor that takes (int index, void *raw data, size_t sz)
-inline void for_all(MixedTyped& idx_and_data,
-                    std::function<void(int, void*, size_t)> execute_this) {
-    for_all_internal(idx_and_data.float32Operands, execute_this);
-    for_all_internal(idx_and_data.int32Operands, execute_this);
-    for_all_internal(idx_and_data.quant8AsymmOperands, execute_this);
-    for_all_internal(idx_and_data.quant16SymmOperands, execute_this);
-    for_all_internal(idx_and_data.float16Operands, execute_this);
-    for_all_internal(idx_and_data.bool8Operands, execute_this);
-    for_all_internal(idx_and_data.quant8ChannelOperands, execute_this);
-    for_all_internal(idx_and_data.quant16AsymmOperands, execute_this);
-    for_all_internal(idx_and_data.quant8SymmOperands, execute_this);
-    static_assert(9 == MixedTyped::kNumTypes,
-                  "Number of types in MixedTyped changed, but for_all function wasn't updated");
-}
-
-// Const variant of internal helper for for_all
-template <typename T>
-inline void for_all_internal(const std::map<int, std::vector<T>>& idx_and_data,
-                             std::function<void(int, const void*, size_t)> execute_this) {
-    for_each<T>(idx_and_data, [&execute_this](int idx, const std::vector<T>& m) {
-        execute_this(idx, static_cast<const void*>(m.data()), m.size() * sizeof(T));
-    });
-}
-
-// Go through all index-value pairs (const variant)
-// expects a functor that takes (int index, const void *raw data, size_t sz)
-inline void for_all(const MixedTyped& idx_and_data,
-                    std::function<void(int, const void*, size_t)> execute_this) {
-    for_all_internal(idx_and_data.float32Operands, execute_this);
-    for_all_internal(idx_and_data.int32Operands, execute_this);
-    for_all_internal(idx_and_data.quant8AsymmOperands, execute_this);
-    for_all_internal(idx_and_data.quant16SymmOperands, execute_this);
-    for_all_internal(idx_and_data.float16Operands, execute_this);
-    for_all_internal(idx_and_data.bool8Operands, execute_this);
-    for_all_internal(idx_and_data.quant8ChannelOperands, execute_this);
-    for_all_internal(idx_and_data.quant16AsymmOperands, execute_this);
-    for_all_internal(idx_and_data.quant8SymmOperands, execute_this);
-    static_assert(
-            9 == MixedTyped::kNumTypes,
-            "Number of types in MixedTyped changed, but const for_all function wasn't updated");
-}
-
-// Helper template - resize test output per golden
-template <typename T>
-inline void resize_accordingly_(const std::map<int, std::vector<T>>& golden,
-                                std::map<int, std::vector<T>>& test) {
-    for_each<T>(golden, test,
-                [](int, const std::vector<T>& g, std::vector<T>& t) { t.resize(g.size()); });
-}
-
-template <>
-inline void resize_accordingly_<uint32_t>(const OperandDimensions& golden,
-                                          OperandDimensions& test) {
-    for_each<uint32_t>(
-            golden, test,
-            [](int, const std::vector<uint32_t>& g, std::vector<uint32_t>& t) { t = g; });
-}
-
-inline void resize_accordingly(const MixedTyped& golden, MixedTyped& test) {
-    resize_accordingly_(golden.operandDimensions, test.operandDimensions);
-    resize_accordingly_(golden.float32Operands, test.float32Operands);
-    resize_accordingly_(golden.int32Operands, test.int32Operands);
-    resize_accordingly_(golden.quant8AsymmOperands, test.quant8AsymmOperands);
-    resize_accordingly_(golden.quant16SymmOperands, test.quant16SymmOperands);
-    resize_accordingly_(golden.float16Operands, test.float16Operands);
-    resize_accordingly_(golden.bool8Operands, test.bool8Operands);
-    resize_accordingly_(golden.quant8ChannelOperands, test.quant8ChannelOperands);
-    resize_accordingly_(golden.quant16AsymmOperands, test.quant16AsymmOperands);
-    resize_accordingly_(golden.quant8SymmOperands, test.quant8SymmOperands);
-    static_assert(9 == MixedTyped::kNumTypes,
-                  "Number of types in MixedTyped changed, but resize_accordingly function wasn't "
-                  "updated");
-}
-
-template <typename T>
-void filter_internal(const std::map<int, std::vector<T>>& golden,
-                     std::map<int, std::vector<T>>* filtered, std::function<bool(int)> is_ignored) {
-    for_each<T>(golden, [filtered, &is_ignored](int index, const std::vector<T>& m) {
-        auto& g = *filtered;
-        if (!is_ignored(index)) g[index] = m;
-    });
-}
-
-inline MixedTyped filter(const MixedTyped& golden,
-                         std::function<bool(int)> is_ignored) {
-    MixedTyped filtered;
-    filter_internal(golden.operandDimensions, &filtered.operandDimensions, is_ignored);
-    filter_internal(golden.float32Operands, &filtered.float32Operands, is_ignored);
-    filter_internal(golden.int32Operands, &filtered.int32Operands, is_ignored);
-    filter_internal(golden.quant8AsymmOperands, &filtered.quant8AsymmOperands, is_ignored);
-    filter_internal(golden.quant16SymmOperands, &filtered.quant16SymmOperands, is_ignored);
-    filter_internal(golden.float16Operands, &filtered.float16Operands, is_ignored);
-    filter_internal(golden.bool8Operands, &filtered.bool8Operands, is_ignored);
-    filter_internal(golden.quant8ChannelOperands, &filtered.quant8ChannelOperands, is_ignored);
-    filter_internal(golden.quant16AsymmOperands, &filtered.quant16AsymmOperands, is_ignored);
-    filter_internal(golden.quant8SymmOperands, &filtered.quant8SymmOperands, is_ignored);
-    static_assert(9 == MixedTyped::kNumTypes,
-                  "Number of types in MixedTyped changed, but compare function wasn't updated");
-    return filtered;
-}
-
-// Compare results
-template <typename T>
-void compare_(const std::map<int, std::vector<T>>& golden,
-              const std::map<int, std::vector<T>>& test, std::function<void(T, T)> cmp) {
-    for_each<T>(golden, test, [&cmp](int index, const std::vector<T>& g, const std::vector<T>& t) {
-        for (unsigned int i = 0; i < g.size(); i++) {
-            SCOPED_TRACE(testing::Message()
-                         << "When comparing output " << index << " element " << i);
-            cmp(g[i], t[i]);
-        }
-    });
-}
-
-// TODO: Allow passing accuracy criteria from spec.
-// Currently we only need relaxed accuracy criteria on mobilenet tests, so we return the quant8
-// tolerance simply based on the current test name.
-inline int getQuant8AllowedError() {
-    const ::testing::TestInfo* const testInfo =
-            ::testing::UnitTest::GetInstance()->current_test_info();
-    const std::string testCaseName = testInfo->test_case_name();
-    const std::string testName = testInfo->name();
-    // We relax the quant8 precision for all tests with mobilenet:
-    // - CTS/VTS GeneratedTest and DynamicOutputShapeTest with mobilenet
-    // - VTS CompilationCachingTest and CompilationCachingSecurityTest except for TOCTOU tests
-    if (testName.find("mobilenet") != std::string::npos ||
-        (testCaseName.find("CompilationCaching") != std::string::npos &&
-         testName.find("TOCTOU") == std::string::npos)) {
-        return 2;
-    } else {
-        return 1;
-    }
-}
-
-inline void compare(const MixedTyped& golden, const MixedTyped& test,
-                    float fpAtol = 1e-5f, float fpRtol = 1e-5f) {
-    int quant8AllowedError = getQuant8AllowedError();
-    for_each<uint32_t>(
-            golden.operandDimensions, test.operandDimensions,
-            [](int index, const std::vector<uint32_t>& g, const std::vector<uint32_t>& t) {
-                SCOPED_TRACE(testing::Message()
-                             << "When comparing dimensions for output " << index);
-                EXPECT_EQ(g, t);
-            });
-    size_t totalNumberOfErrors = 0;
-    compare_<float>(golden.float32Operands, test.float32Operands,
-                    [&totalNumberOfErrors, fpAtol, fpRtol](float expected, float actual) {
-                        // Compute the range based on both absolute tolerance and relative tolerance
-                        float fpRange = fpAtol + fpRtol * std::abs(expected);
-                        if (totalNumberOfErrors < gMaximumNumberOfErrorMessages) {
-                            EXPECT_NEAR(expected, actual, fpRange);
-                        }
-                        if (std::abs(expected - actual) > fpRange) {
-                            totalNumberOfErrors++;
-                        }
-                    });
-    compare_<int32_t>(golden.int32Operands, test.int32Operands,
-                      [&totalNumberOfErrors](int32_t expected, int32_t actual) {
-                          if (totalNumberOfErrors < gMaximumNumberOfErrorMessages) {
-                              EXPECT_EQ(expected, actual);
-                          }
-                          if (expected != actual) {
-                              totalNumberOfErrors++;
-                          }
-                      });
-    compare_<uint8_t>(golden.quant8AsymmOperands, test.quant8AsymmOperands,
-                      [&totalNumberOfErrors, quant8AllowedError](uint8_t expected, uint8_t actual) {
-                          if (totalNumberOfErrors < gMaximumNumberOfErrorMessages) {
-                              EXPECT_NEAR(expected, actual, quant8AllowedError);
-                          }
-                          if (std::abs(expected - actual) > quant8AllowedError) {
-                              totalNumberOfErrors++;
-                          }
-                      });
-    compare_<int16_t>(golden.quant16SymmOperands, test.quant16SymmOperands,
-                      [&totalNumberOfErrors](int16_t expected, int16_t actual) {
-                          if (totalNumberOfErrors < gMaximumNumberOfErrorMessages) {
-                              EXPECT_NEAR(expected, actual, 1);
-                          }
-                          if (std::abs(expected - actual) > 1) {
-                              totalNumberOfErrors++;
-                          }
-                      });
-    compare_<_Float16>(golden.float16Operands, test.float16Operands,
-                       [&totalNumberOfErrors, fpAtol, fpRtol](_Float16 expected, _Float16 actual) {
-                           // Compute the range based on both absolute tolerance and relative
-                           // tolerance
-                           float fpRange = fpAtol + fpRtol * std::abs(static_cast<float>(expected));
-                           if (totalNumberOfErrors < gMaximumNumberOfErrorMessages) {
-                               EXPECT_NEAR(expected, actual, fpRange);
-                           }
-                           if (std::abs(static_cast<float>(expected - actual)) > fpRange) {
-                               totalNumberOfErrors++;
-                           }
-                       });
-    compare_<bool8>(golden.bool8Operands, test.bool8Operands,
-                    [&totalNumberOfErrors](bool expected, bool actual) {
-                        if (totalNumberOfErrors < gMaximumNumberOfErrorMessages) {
-                            EXPECT_EQ(expected, actual);
-                        }
-                        if (expected != actual) {
-                            totalNumberOfErrors++;
-                        }
-                    });
-    compare_<int8_t>(golden.quant8ChannelOperands, test.quant8ChannelOperands,
-                     [&totalNumberOfErrors, &quant8AllowedError](int8_t expected, int8_t actual) {
-                         if (totalNumberOfErrors < gMaximumNumberOfErrorMessages) {
-                             EXPECT_NEAR(expected, actual, quant8AllowedError);
-                         }
-                         if (std::abs(static_cast<int>(expected) - static_cast<int>(actual)) >
-                             quant8AllowedError) {
-                             totalNumberOfErrors++;
-                         }
-                     });
-    compare_<uint16_t>(golden.quant16AsymmOperands, test.quant16AsymmOperands,
-                       [&totalNumberOfErrors](int16_t expected, int16_t actual) {
-                           if (totalNumberOfErrors < gMaximumNumberOfErrorMessages) {
-                               EXPECT_NEAR(expected, actual, 1);
-                           }
-                           if (std::abs(expected - actual) > 1) {
-                               totalNumberOfErrors++;
-                           }
-                       });
-    compare_<int8_t>(golden.quant8SymmOperands, test.quant8SymmOperands,
-                     [&totalNumberOfErrors, quant8AllowedError](int8_t expected, int8_t actual) {
-                         if (totalNumberOfErrors < gMaximumNumberOfErrorMessages) {
-                             EXPECT_NEAR(expected, actual, quant8AllowedError);
-                         }
-                         if (std::abs(static_cast<int>(expected) - static_cast<int>(actual)) >
-                             quant8AllowedError) {
-                             totalNumberOfErrors++;
-                         }
-                     });
-
-    static_assert(9 == MixedTyped::kNumTypes,
-                  "Number of types in MixedTyped changed, but compare function wasn't updated");
-    EXPECT_EQ(size_t{0}, totalNumberOfErrors);
-}
-
-// Calculates the expected probability from the unnormalized log-probability of
-// each class in the input and compares it to the actual ocurrence of that class
-// in the output.
-inline void expectMultinomialDistributionWithinTolerance(const MixedTyped& test,
-                                                         const MixedTypedExample& example) {
-    // TODO: These should be parameters but aren't currently preserved in the example.
-    const int kBatchSize = 1;
-    const int kNumClasses = 1024;
-    const int kNumSamples = 128;
-
-    std::vector<int32_t> output = test.int32Operands.at(0);
-    std::vector<int> class_counts;
-    class_counts.resize(kNumClasses);
-    for (int index : output) {
-        class_counts[index]++;
-    }
-    std::vector<float> input;
-    Float32Operands float32Operands = example.operands.first.float32Operands;
-    if (!float32Operands.empty()) {
-        input = example.operands.first.float32Operands.at(0);
-    } else {
-        std::vector<_Float16> inputFloat16 = example.operands.first.float16Operands.at(0);
-        input.resize(inputFloat16.size());
-        convertFloat16ToFloat32(inputFloat16.data(), &input);
-    }
-    for (int b = 0; b < kBatchSize; ++b) {
-        float probability_sum = 0;
-        const int batch_index = kBatchSize * b;
-        for (int i = 0; i < kNumClasses; ++i) {
-            probability_sum += expf(input[batch_index + i]);
-        }
-        for (int i = 0; i < kNumClasses; ++i) {
-            float probability =
-                    static_cast<float>(class_counts[i]) / static_cast<float>(kNumSamples);
-            float probability_expected = expf(input[batch_index + i]) / probability_sum;
-            EXPECT_THAT(probability,
-                        ::testing::FloatNear(probability_expected,
-                                             example.expectedMultinomialDistributionTolerance));
+    void forEachSubgraph(std::function<void(const TestSubgraph&)> handler) const {
+        handler(main);
+        for (const TestSubgraph& subgraph : referenced) {
+            handler(subgraph);
         }
     }
-}
 
-};  // namespace test_helper
+    void forEachSubgraph(std::function<void(TestSubgraph&)> handler) {
+        handler(main);
+        for (TestSubgraph& subgraph : referenced) {
+            handler(subgraph);
+        }
+    }
 
-#endif  // ANDROID_ML_NN_TOOLS_TEST_GENERATOR_TEST_HARNESS_H
+    // Explicitly create a deep copy.
+    TestModel copy() const {
+        TestModel newTestModel(*this);
+        newTestModel.forEachSubgraph([](TestSubgraph& subgraph) {
+            for (TestOperand& operand : subgraph.operands) {
+                operand.data = operand.data.copy();
+            }
+        });
+        return newTestModel;
+    }
+
+    bool hasQuant8CoupledOperands() const {
+        bool result = false;
+        forEachSubgraph([&result](const TestSubgraph& subgraph) {
+            if (result) {
+                return;
+            }
+            for (const TestOperation& operation : subgraph.operations) {
+                /*
+                 *  There are several ops that are exceptions to the general quant8
+                 *  types coupling:
+                 *  HASHTABLE_LOOKUP -- due to legacy reasons uses
+                 *    TENSOR_QUANT8_ASYMM tensor as if it was TENSOR_BOOL. It
+                 *    doesn't make sense to have coupling in this case.
+                 *  LSH_PROJECTION -- hashes an input tensor treating it as raw
+                 *    bytes. We can't expect same results for coupled inputs.
+                 *  PAD_V2 -- pad_value is set using int32 scalar, so coupling
+                 *    produces a wrong result.
+                 *  CAST -- converts tensors without taking into account input's
+                 *    scale and zero point. Coupled models shouldn't produce same
+                 *    results.
+                 *  QUANTIZED_16BIT_LSTM -- the op is made for a specific use case,
+                 *    supporting signed quantization is not worth the compications.
+                 */
+                if (operation.type == TestOperationType::HASHTABLE_LOOKUP ||
+                    operation.type == TestOperationType::LSH_PROJECTION ||
+                    operation.type == TestOperationType::PAD_V2 ||
+                    operation.type == TestOperationType::CAST ||
+                    operation.type == TestOperationType::QUANTIZED_16BIT_LSTM) {
+                    continue;
+                }
+                for (const auto operandIndex : operation.inputs) {
+                    if (subgraph.operands[operandIndex].type ==
+                        TestOperandType::TENSOR_QUANT8_ASYMM) {
+                        result = true;
+                        return;
+                    }
+                }
+                for (const auto operandIndex : operation.outputs) {
+                    if (subgraph.operands[operandIndex].type ==
+                        TestOperandType::TENSOR_QUANT8_ASYMM) {
+                        result = true;
+                        return;
+                    }
+                }
+            }
+        });
+        return result;
+    }
+
+    bool hasScalarOutputs() const {
+        bool result = false;
+        forEachSubgraph([&result](const TestSubgraph& subgraph) {
+            if (result) {
+                return;
+            }
+            for (const TestOperation& operation : subgraph.operations) {
+                // RANK op returns a scalar and therefore shouldn't be tested
+                // for dynamic output shape support.
+                if (operation.type == TestOperationType::RANK) {
+                    result = true;
+                    return;
+                }
+                // Control flow operations do not support referenced model
+                // outputs with dynamic shapes.
+                if (operation.type == TestOperationType::IF ||
+                    operation.type == TestOperationType::WHILE) {
+                    result = true;
+                    return;
+                }
+            }
+        });
+        return result;
+    }
+
+    bool isInfiniteLoopTimeoutTest() const {
+        // This should only match the TestModel generated from while_infinite_loop.mod.py.
+        return expectFailure && main.operations[0].type == TestOperationType::WHILE;
+    }
+};
+
+// Manages all generated test models.
+class TestModelManager {
+   public:
+    // Returns the singleton manager.
+    static TestModelManager& get() {
+        static TestModelManager instance;
+        return instance;
+    }
+
+    // Registers a TestModel to the manager. Returns a dummy integer for global variable
+    // initialization.
+    int add(std::string name, const TestModel& testModel) {
+        mTestModels.emplace(std::move(name), &testModel);
+        return 0;
+    }
+
+    // Returns a vector of selected TestModels for which the given "filter" returns true.
+    using TestParam = std::pair<std::string, const TestModel*>;
+    std::vector<TestParam> getTestModels(std::function<bool(const TestModel&)> filter) {
+        std::vector<TestParam> testModels;
+        testModels.reserve(mTestModels.size());
+        std::copy_if(mTestModels.begin(), mTestModels.end(), std::back_inserter(testModels),
+                     [filter](const auto& nameTestPair) { return filter(*nameTestPair.second); });
+        return testModels;
+    }
+
+    // Returns a vector of selected TestModels for which the given "filter" returns true.
+    std::vector<TestParam> getTestModels(std::function<bool(const std::string&)> filter) {
+        std::vector<TestParam> testModels;
+        testModels.reserve(mTestModels.size());
+        std::copy_if(mTestModels.begin(), mTestModels.end(), std::back_inserter(testModels),
+                     [filter](const auto& nameTestPair) { return filter(nameTestPair.first); });
+        return testModels;
+    }
+
+   private:
+    TestModelManager() = default;
+    TestModelManager(const TestModelManager&) = delete;
+    TestModelManager& operator=(const TestModelManager&) = delete;
+
+    // Contains all TestModels generated from nn/runtime/test/specs directory.
+    // The TestModels are sorted by name to ensure a predictable order.
+    std::map<std::string, const TestModel*> mTestModels;
+};
+
+struct AccuracyCriterion {
+    // We expect the driver results to be unbiased.
+    // Formula: abs(sum_{i}(diff) / sum(1)) <= bias, where
+    // * fixed point: diff = actual - expected
+    // * floating point: diff = (actual - expected) / max(1, abs(expected))
+    float bias = std::numeric_limits<float>::max();
+
+    // Set the threshold on Mean Square Error (MSE).
+    // Formula: sum_{i}(diff ^ 2) / sum(1) <= mse
+    float mse = std::numeric_limits<float>::max();
+
+    // We also set accuracy thresholds on each element to detect any particular edge cases that may
+    // be shadowed in bias or MSE. We use the similar approach as our CTS unit tests, but with much
+    // relaxed criterion.
+    // Formula: abs(actual - expected) <= atol + rtol * abs(expected)
+    //   where atol stands for Absolute TOLerance and rtol for Relative TOLerance.
+    float atol = 0.0f;
+    float rtol = 0.0f;
+};
+
+struct AccuracyCriteria {
+    AccuracyCriterion float32;
+    AccuracyCriterion float16;
+    AccuracyCriterion int32;
+    AccuracyCriterion quant8Asymm;
+    AccuracyCriterion quant8AsymmSigned;
+    AccuracyCriterion quant8Symm;
+    AccuracyCriterion quant16Asymm;
+    AccuracyCriterion quant16Symm;
+    float bool8AllowedErrorRatio = 0.1f;
+    bool allowInvalidFpValues = true;
+};
+
+// Check the output results against the expected values in test model by calling
+// GTEST_ASSERT/EXPECT. The index of the results corresponds to the index in
+// model.main.outputIndexes. E.g., results[i] corresponds to model.main.outputIndexes[i].
+void checkResults(const TestModel& model, const std::vector<TestBuffer>& results);
+void checkResults(const TestModel& model, const std::vector<TestBuffer>& results,
+                  const AccuracyCriteria& criteria);
+
+bool isQuantizedType(TestOperandType type);
+
+TestModel convertQuant8AsymmOperandsToSigned(const TestModel& testModel);
+
+const char* toString(TestOperandType type);
+const char* toString(TestOperationType type);
+
+// Dump a test model in the format of a spec file for debugging and visualization purpose.
+class SpecDumper {
+   public:
+    SpecDumper(const TestModel& testModel, std::ostream& os) : kTestModel(testModel), mOs(os) {}
+    void dumpTestModel();
+    void dumpResults(const std::string& name, const std::vector<TestBuffer>& results);
+
+   private:
+    // Dump a test model operand.
+    // e.g. op0 = Input("op0", "TENSOR_FLOAT32", "{1, 2, 6, 1}")
+    // e.g. op1 = Parameter("op1", "INT32", "{}", [2])
+    void dumpTestOperand(const TestOperand& operand, uint32_t index);
+
+    // Dump a test model operation.
+    // e.g. model = model.Operation("CONV_2D", op0, op1, op2, op3, op4, op5, op6).To(op7)
+    void dumpTestOperation(const TestOperation& operation);
+
+    // Dump a test buffer as a python 1D list.
+    // e.g. [1, 2, 3, 4, 5]
+    //
+    // If useHexFloat is set to true and the operand type is float, the buffer values will be
+    // dumped in hex representation.
+    void dumpTestBuffer(TestOperandType type, const TestBuffer& buffer, bool useHexFloat);
+
+    const TestModel& kTestModel;
+    std::ostream& mOs;
+};
+
+// Convert the test model to an equivalent float32 model. It will return std::nullopt if the
+// conversion is not supported, or if there is no equivalent float32 model.
+std::optional<TestModel> convertToFloat32Model(const TestModel& testModel);
+
+// Used together with convertToFloat32Model. Convert the results computed from the float model to
+// the actual data type in the original model.
+void setExpectedOutputsFromFloat32Results(const std::vector<TestBuffer>& results, TestModel* model);
+
+}  // namespace test_helper
+
+#endif  // ANDROID_FRAMEWORKS_ML_NN_TOOLS_TEST_GENERATOR_TEST_HARNESS_TEST_HARNESS_H

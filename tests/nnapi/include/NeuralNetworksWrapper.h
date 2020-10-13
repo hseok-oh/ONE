@@ -17,8 +17,8 @@
 
 // Provides C++ classes to more easily use the Neural Networks API.
 
-#ifndef __NNFW_RT_NEURAL_NETWORKS_WRAPPER_H__
-#define __NNFW_RT_NEURAL_NETWORKS_WRAPPER_H__
+#ifndef ANDROID_FRAMEWORKS_ML_NN_RUNTIME_NEURAL_NETWORKS_WRAPPER_H
+#define ANDROID_FRAMEWORKS_ML_NN_RUNTIME_NEURAL_NETWORKS_WRAPPER_H
 
 // Fix for onert:
 //  NeuralNetworks.h => NeuralNetworksShim.h
@@ -27,12 +27,14 @@
 #include "NeuralNetworksExShim.h"
 
 #include <math.h>
-// Fix for onert: use boost::optional instead of std::optional
-// TODO in onert: introduce and use internal optional library
-#include <boost/optional.hpp>
+#include <algorithm>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
+#include <cassert>
 
+// FIX for onert: rename namespace
 namespace nnfw {
 namespace rt {
 namespace wrapper {
@@ -52,12 +54,20 @@ enum class Type {
     TENSOR_QUANT8_SYMM_PER_CHANNEL = ANEURALNETWORKS_TENSOR_QUANT8_SYMM_PER_CHANNEL,
     TENSOR_QUANT16_ASYMM = ANEURALNETWORKS_TENSOR_QUANT16_ASYMM,
     TENSOR_QUANT8_SYMM = ANEURALNETWORKS_TENSOR_QUANT8_SYMM,
+    MODEL = ANEURALNETWORKS_MODEL,
 };
 
 enum class ExecutePreference {
     PREFER_LOW_POWER = ANEURALNETWORKS_PREFER_LOW_POWER,
     PREFER_FAST_SINGLE_ANSWER = ANEURALNETWORKS_PREFER_FAST_SINGLE_ANSWER,
     PREFER_SUSTAINED_SPEED = ANEURALNETWORKS_PREFER_SUSTAINED_SPEED
+};
+
+enum class ExecutePriority {
+    LOW = ANEURALNETWORKS_PRIORITY_LOW,
+    MEDIUM = ANEURALNETWORKS_PRIORITY_MEDIUM,
+    HIGH = ANEURALNETWORKS_PRIORITY_HIGH,
+    DEFAULT = ANEURALNETWORKS_PRIORITY_DEFAULT,
 };
 
 enum class Result {
@@ -71,6 +81,8 @@ enum class Result {
     BAD_STATE = ANEURALNETWORKS_BAD_STATE,
     OUTPUT_INSUFFICIENT_SIZE = ANEURALNETWORKS_OUTPUT_INSUFFICIENT_SIZE,
     UNAVAILABLE_DEVICE = ANEURALNETWORKS_UNAVAILABLE_DEVICE,
+    MISSED_DEADLINE_TRANSIENT = ANEURALNETWORKS_MISSED_DEADLINE_TRANSIENT,
+    MISSED_DEADLINE_PERSISTENT = ANEURALNETWORKS_MISSED_DEADLINE_PERSISTENT,
 };
 
 struct SymmPerChannelQuantParams {
@@ -104,10 +116,7 @@ struct SymmPerChannelQuantParams {
 struct OperandType {
     ANeuralNetworksOperandType operandType;
     std::vector<uint32_t> dimensions;
-    // Fix for onert:
-    //  Use boost::optional instead of std::optional
-    //  Default value: std::nullopt -> boost::none
-    boost::optional<SymmPerChannelQuantParams> channelQuant;
+    std::optional<SymmPerChannelQuantParams> channelQuant;
 
     OperandType(const OperandType& other)
         : operandType(other.operandType),
@@ -127,7 +136,7 @@ struct OperandType {
     }
 
     OperandType(Type type, std::vector<uint32_t> d, float scale = 0.0f, int32_t zeroPoint = 0)
-        : dimensions(std::move(d)), channelQuant(boost::none) {
+        : dimensions(std::move(d)), channelQuant(std::nullopt) {
         operandType = {
                 .type = static_cast<int32_t>(type),
                 .dimensionCount = static_cast<uint32_t>(dimensions.size()),
@@ -137,15 +146,16 @@ struct OperandType {
         };
     }
 
-    OperandType(Type type, std::vector<uint32_t> data, float scale, int32_t zeroPoint,
-                SymmPerChannelQuantParams&& channelQuant)
+    OperandType(Type type, std::vector<uint32_t> data, SymmPerChannelQuantParams&& channelQuant)
         : dimensions(std::move(data)), channelQuant(std::move(channelQuant)) {
+        assert(type == Type::TENSOR_QUANT8_SYMM_PER_CHANNEL);
+
         operandType = {
                 .type = static_cast<int32_t>(type),
                 .dimensionCount = static_cast<uint32_t>(dimensions.size()),
                 .dimensions = dimensions.size() > 0 ? dimensions.data() : nullptr,
-                .scale = scale,
-                .zeroPoint = zeroPoint,
+                .scale = 0.0f,
+                .zeroPoint = 0,
         };
     }
 };
@@ -346,6 +356,9 @@ class Event {
         mEvent = newEvent;
     }
 
+    // Only for use by Execution
+    ANeuralNetworksEvent* getHandle() const { return mEvent; }
+
    private:
     ANeuralNetworksEvent* mEvent = nullptr;
 };
@@ -383,6 +396,11 @@ class Compilation {
     Result setPreference(ExecutePreference preference) {
         return static_cast<Result>(ANeuralNetworksCompilation_setPreference(
                 mCompilation, static_cast<int32_t>(preference)));
+    }
+
+    Result setPriority(ExecutePriority priority) {
+        return static_cast<Result>(ANeuralNetworksCompilation_setPriority(
+                mCompilation, static_cast<int32_t>(priority)));
     }
 
     Result setCaching(const std::string& cacheDir, const std::vector<uint8_t>& token) {
@@ -462,6 +480,18 @@ class Execution {
         return result;
     }
 
+    Result startComputeWithDependencies(const std::vector<const Event*>& dependencies,
+                                        uint64_t duration, Event* event) {
+        std::vector<const ANeuralNetworksEvent*> deps(dependencies.size());
+        std::transform(dependencies.begin(), dependencies.end(), deps.begin(),
+                       [](const Event* e) { return e->getHandle(); });
+        ANeuralNetworksEvent* ev = nullptr;
+        Result result = static_cast<Result>(ANeuralNetworksExecution_startComputeWithDependencies(
+                mExecution, deps.data(), deps.size(), duration, &ev));
+        event->set(ev);
+        return result;
+    }
+
     Result compute() { return static_cast<Result>(ANeuralNetworksExecution_compute(mExecution)); }
 
     Result getOutputOperandDimensions(uint32_t index, std::vector<uint32_t>* dimensions) {
@@ -486,4 +516,4 @@ class Execution {
 }  // namespace rt
 }  // namespace nnfw
 
-#endif  // __NNFW_RT_NEURAL_NETWORKS_WRAPPER_H__
+#endif  //  ANDROID_FRAMEWORKS_ML_NN_RUNTIME_NEURAL_NETWORKS_WRAPPER_H

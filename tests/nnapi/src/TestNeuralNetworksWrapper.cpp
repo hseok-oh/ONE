@@ -17,6 +17,7 @@
 
 #include "TestNeuralNetworksWrapper.h"
 
+// Fix for onert: rename namespace
 namespace nnfw {
 namespace rt {
 namespace test_wrapper {

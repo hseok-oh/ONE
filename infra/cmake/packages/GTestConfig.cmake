@@ -13,7 +13,7 @@ function(_GTest_build)
   ExternalBuild_CMake(CMAKE_DIR   ${GTestSource_DIR}
                       BUILD_DIR   ${CMAKE_BINARY_DIR}/externals/GTEST/build
                       INSTALL_DIR ${EXT_OVERLAY_DIR}
-                      IDENTIFIER  "1.8.0-fix1"
+                      IDENTIFIER  "1.10.0"
                       PKG_NAME    "GTEST")
 
 endfunction(_GTest_build)
