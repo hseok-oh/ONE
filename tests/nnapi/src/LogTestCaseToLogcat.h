@@ -17,20 +17,30 @@
 #ifndef ANDROID_FRAMEWORKS_ML_NN_RUNTIME_TEST_LOG_TEST_CASE_TO_LOGCAT_H
 #define ANDROID_FRAMEWORKS_ML_NN_RUNTIME_TEST_LOG_TEST_CASE_TO_LOGCAT_H
 
+// FIX for onert: android dependency
+#ifdef __ANDROID__
 #include <android-base/logging.h>
+#endif
 #include <gtest/gtest.h>
 
-namespace android::nn {
+// FIX for onert: rename namespace
+namespace nnfw::rt {
 
 class LogTestCaseToLogcat : public ::testing::EmptyTestEventListener {
     virtual void OnTestStart(const ::testing::TestInfo& test_info) {
+// FIX for onert: android dependency
+#ifdef __ANDROID__
         LOG(INFO) << "[Test Case] " << test_info.test_suite_name() << "." << test_info.name()
                   << " BEGIN";
+#endif
     }
 
     virtual void OnTestEnd(const ::testing::TestInfo& test_info) {
+// FIX for onert: android dependency
+#ifdef __ANDROID__
         LOG(INFO) << "[Test Case] " << test_info.test_suite_name() << "." << test_info.name()
                   << " END";
+#endif
     }
 };
 

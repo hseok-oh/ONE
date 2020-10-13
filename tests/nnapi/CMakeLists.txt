@@ -30,7 +30,8 @@ if (GENERATE_RUNTIME_NNAPI_TESTS)
 endif(GENERATE_RUNTIME_NNAPI_TESTS)
 
 set(RUNTIME_NNAPI_TEST nnapi_gtest)
-set(RUNTIME_NNAPI_TEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/TestMain.cpp
+set(RUNTIME_NNAPI_TEST_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/CtsMain.cpp
+                           ${CMAKE_CURRENT_SOURCE_DIR}/src/GeneratedTestUtils.cpp
                            ${CMAKE_CURRENT_SOURCE_DIR}/src/TestNeuralNetworksWrapper.cpp
                            ${CMAKE_CURRENT_SOURCE_DIR}/src/TestTrivialModel.cpp
                            ${CMAKE_CURRENT_SOURCE_DIR}/src/TestValidation.cpp)
