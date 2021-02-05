@@ -62,18 +62,15 @@ void RandomTestRunner::compile(const nnfw::tflite::Builder &builder)
 
     auto tfl_interp_view = nnfw::tflite::TensorView<int32_t>::make(*tfl_interp, id);
     auto nnapi_view = nnfw::tflite::TensorView<int32_t>::make(*nnapi, id);
+    auto tensor_shape = tfl_interp_view.shape();
+    assert(nnapi_view.shape() == tensor_shape);
 
-    assert(tfl_interp_view.shape() == nnapi_view.shape());
+    nnfw::misc::tensor::iterate(tensor_shape) << [&](const nnfw::misc::tensor::Index &ind) {
+      const auto value = _randgen.generate<int32_t>();
 
-    int32_t value = 0;
-
-    nnfw::misc::tensor::iterate(tfl_interp_view.shape())
-      << [&](const nnfw::misc::tensor::Index &ind) {
-           // TODO Generate random values
-           tfl_interp_view.at(ind) = value;
-           nnapi_view.at(ind) = value;
-           ++value;
-         };
+      tfl_interp_view.at(ind) = value;
+      nnapi_view.at(ind) = value;
+    };
   };
 
   // Generate singed 32-bit integer (s32) input
@@ -83,17 +80,13 @@ void RandomTestRunner::compile(const nnfw::tflite::Builder &builder)
 
     auto tfl_interp_view = nnfw::tflite::TensorView<int32_t>::make(*tfl_interp, id);
     auto nnapi_view = nnfw::tflite::TensorView<int32_t>::make(*nnapi, id);
+    auto tensor_shape = tfl_interp_view.shape();
+    assert(nnapi_view.shape() == tensor_shape);
 
-    assert(tfl_interp_view.shape() == nnapi_view.shape());
-
-    int32_t value = 0;
-
-    nnfw::misc::tensor::iterate(tfl_interp_view.shape())
-      << [&](const nnfw::misc::tensor::Index &ind) {
-           // TODO Generate random values
-           tfl_interp_view.at(ind) = value;
-           nnapi_view.at(ind) = value;
-         };
+    nnfw::misc::tensor::iterate(tensor_shape) << [&](const nnfw::misc::tensor::Index &ind) {
+      tfl_interp_view.at(ind) = 0;
+      nnapi_view.at(ind) = 0;
+    };
   };
 
   initializers[kTfLiteUInt8] = [&](int id, Interpreter *tfl_interp, Interpreter *nnapi) {
@@ -102,19 +95,12 @@ void RandomTestRunner::compile(const nnfw::tflite::Builder &builder)
 
     auto tfl_interp_view = nnfw::tflite::TensorView<uint8_t>::make(*tfl_interp, id);
     auto nnapi_view = nnfw::tflite::TensorView<uint8_t>::make(*nnapi, id);
-
-    assert(tfl_interp_view.shape() == nnapi_view.shape());
-
-    auto fp = static_cast<uint8_t (nnfw::misc::RandomGenerator::*)(
-      const ::nnfw::misc::tensor::Shape &, const ::nnfw::misc::tensor::Index &)>(
-      &nnfw::misc::RandomGenerator::generate<uint8_t>);
-    const nnfw::misc::tensor::Object<uint8_t> data(tfl_interp_view.shape(),
-                                                   std::bind(fp, _randgen, _1, _2));
-    assert(tfl_interp_view.shape() == data.shape());
+    auto shape = tfl_interp_view.shape();
+    assert(nnapi_view.shape() == shape);
 
     nnfw::misc::tensor::iterate(tfl_interp_view.shape())
       << [&](const nnfw::misc::tensor::Index &ind) {
-           const auto value = data.at(ind);
+           const auto value = _randgen.generate<uint8_t>();
 
            tfl_interp_view.at(ind) = value;
            nnapi_view.at(ind) = value;
@@ -127,23 +113,13 @@ void RandomTestRunner::compile(const nnfw::tflite::Builder &builder)
 
     auto tfl_interp_view = nnfw::tflite::TensorView<uint8_t>::make(*tfl_interp, id);
     auto nnapi_view = nnfw::tflite::TensorView<uint8_t>::make(*nnapi, id);
+    auto tensor_shape = tfl_interp_view.shape();
+    assert(nnapi_view.shape() == tensor_shape);
 
-    assert(tfl_interp_view.shape() == nnapi_view.shape());
-
-    auto fp = static_cast<uint8_t (nnfw::misc::RandomGenerator::*)(
-      const ::nnfw::misc::tensor::Shape &, const ::nnfw::misc::tensor::Index &)>(
-      &nnfw::misc::RandomGenerator::generate<uint8_t>);
-    const nnfw::misc::tensor::Object<uint8_t> data(tfl_interp_view.shape(),
-                                                   std::bind(fp, _randgen, _1, _2));
-    assert(tfl_interp_view.shape() == data.shape());
-
-    uint8_t value = 0;
-
-    nnfw::misc::tensor::iterate(tfl_interp_view.shape())
-      << [&](const nnfw::misc::tensor::Index &ind) {
-           tfl_interp_view.at(ind) = value;
-           nnapi_view.at(ind) = value;
-         };
+    nnfw::misc::tensor::iterate(tensor_shape) << [&](const nnfw::misc::tensor::Index &ind) {
+      tfl_interp_view.at(ind) = 0;
+      nnapi_view.at(ind) = 0;
+    };
   };
 
   initializers[kTfLiteFloat32] = [&](int id, Interpreter *tfl_interp, Interpreter *nnapi) {
@@ -152,24 +128,15 @@ void RandomTestRunner::compile(const nnfw::tflite::Builder &builder)
 
     auto tfl_interp_view = nnfw::tflite::TensorView<float>::make(*tfl_interp, id);
     auto nnapi_view = nnfw::tflite::TensorView<float>::make(*nnapi, id);
+    auto tensor_shape = tfl_interp_view.shape();
+    assert(nnapi_view.shape() == tensor_shape);
 
-    assert(tfl_interp_view.shape() == nnapi_view.shape());
+    nnfw::misc::tensor::iterate(tensor_shape) << [&](const nnfw::misc::tensor::Index &ind) {
+      const auto value = _randgen.generate<float>();
 
-    auto fp = static_cast<float (nnfw::misc::RandomGenerator::*)(
-      const ::nnfw::misc::tensor::Shape &, const ::nnfw::misc::tensor::Index &)>(
-      &nnfw::misc::RandomGenerator::generate<float>);
-    const nnfw::misc::tensor::Object<float> data(tfl_interp_view.shape(),
-                                                 std::bind(fp, _randgen, _1, _2));
-
-    assert(tfl_interp_view.shape() == data.shape());
-
-    nnfw::misc::tensor::iterate(tfl_interp_view.shape())
-      << [&](const nnfw::misc::tensor::Index &ind) {
-           const auto value = data.at(ind);
-
-           tfl_interp_view.at(ind) = value;
-           nnapi_view.at(ind) = value;
-         };
+      tfl_interp_view.at(ind) = value;
+      nnapi_view.at(ind) = value;
+    };
   };
 
   reseters[kTfLiteFloat32] = [&](int id, Interpreter *tfl_interp, Interpreter *nnapi) {
@@ -178,24 +145,13 @@ void RandomTestRunner::compile(const nnfw::tflite::Builder &builder)
 
     auto tfl_interp_view = nnfw::tflite::TensorView<float>::make(*tfl_interp, id);
     auto nnapi_view = nnfw::tflite::TensorView<float>::make(*nnapi, id);
+    auto tensor_shape = tfl_interp_view.shape();
+    assert(nnapi_view.shape() == tensor_shape);
 
-    assert(tfl_interp_view.shape() == nnapi_view.shape());
-
-    auto fp = static_cast<float (nnfw::misc::RandomGenerator::*)(
-      const ::nnfw::misc::tensor::Shape &, const ::nnfw::misc::tensor::Index &)>(
-      &nnfw::misc::RandomGenerator::generate<float>);
-    const nnfw::misc::tensor::Object<float> data(tfl_interp_view.shape(),
-                                                 std::bind(fp, _randgen, _1, _2));
-
-    assert(tfl_interp_view.shape() == data.shape());
-
-    float value = 0;
-
-    nnfw::misc::tensor::iterate(tfl_interp_view.shape())
-      << [&](const nnfw::misc::tensor::Index &ind) {
-           tfl_interp_view.at(ind) = value;
-           nnapi_view.at(ind) = value;
-         };
+    nnfw::misc::tensor::iterate(tensor_shape) << [&](const nnfw::misc::tensor::Index &ind) {
+      tfl_interp_view.at(ind) = 0;
+      nnapi_view.at(ind) = 0;
+    };
   };
 
   initializers[kTfLiteBool] = [&](int id, Interpreter *tfl_interp, Interpreter *nnapi) {
@@ -204,24 +160,15 @@ void RandomTestRunner::compile(const nnfw::tflite::Builder &builder)
 
     auto tfl_interp_view = nnfw::tflite::TensorView<bool>::make(*tfl_interp, id);
     auto nnapi_view = nnfw::tflite::TensorView<bool>::make(*nnapi, id);
+    auto tensor_shape = tfl_interp_view.shape();
+    assert(nnapi_view.shape() == tensor_shape);
 
-    assert(tfl_interp_view.shape() == nnapi_view.shape());
+    nnfw::misc::tensor::iterate(tensor_shape) << [&](const nnfw::misc::tensor::Index &ind) {
+      const auto value = _randgen.generate<bool>();
 
-    auto fp = static_cast<bool (nnfw::misc::RandomGenerator::*)(
-      const ::nnfw::misc::tensor::Shape &, const ::nnfw::misc::tensor::Index &)>(
-      &nnfw::misc::RandomGenerator::generate<bool>);
-    const nnfw::misc::tensor::Object<bool> data(tfl_interp_view.shape(),
-                                                std::bind(fp, _randgen, _1, _2));
-
-    assert(tfl_interp_view.shape() == data.shape());
-
-    nnfw::misc::tensor::iterate(tfl_interp_view.shape())
-      << [&](const nnfw::misc::tensor::Index &ind) {
-           const auto value = data.at(ind);
-
-           tfl_interp_view.at(ind) = value;
-           nnapi_view.at(ind) = value;
-         };
+      tfl_interp_view.at(ind) = value;
+      nnapi_view.at(ind) = value;
+    };
   };
 
   reseters[kTfLiteBool] = [&](int id, Interpreter *tfl_interp, Interpreter *nnapi) {
@@ -230,24 +177,13 @@ void RandomTestRunner::compile(const nnfw::tflite::Builder &builder)
 
     auto tfl_interp_view = nnfw::tflite::TensorView<bool>::make(*tfl_interp, id);
     auto nnapi_view = nnfw::tflite::TensorView<bool>::make(*nnapi, id);
+    auto tensor_shape = tfl_interp_view.shape();
+    assert(nnapi_view.shape() == tensor_shape);
 
-    assert(tfl_interp_view.shape() == nnapi_view.shape());
-
-    auto fp = static_cast<bool (nnfw::misc::RandomGenerator::*)(
-      const ::nnfw::misc::tensor::Shape &, const ::nnfw::misc::tensor::Index &)>(
-      &nnfw::misc::RandomGenerator::generate<bool>);
-    const nnfw::misc::tensor::Object<bool> data(tfl_interp_view.shape(),
-                                                std::bind(fp, _randgen, _1, _2));
-
-    assert(tfl_interp_view.shape() == data.shape());
-
-    bool value = false;
-
-    nnfw::misc::tensor::iterate(tfl_interp_view.shape())
-      << [&](const nnfw::misc::tensor::Index &ind) {
-           tfl_interp_view.at(ind) = value;
-           nnapi_view.at(ind) = value;
-         };
+    nnfw::misc::tensor::iterate(tensor_shape) << [&](const nnfw::misc::tensor::Index &ind) {
+      tfl_interp_view.at(ind) = false;
+      nnapi_view.at(ind) = false;
+    };
   };
 
   // Fill IFM with random numbers
