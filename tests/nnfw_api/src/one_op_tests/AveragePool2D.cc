@@ -37,36 +37,9 @@ struct AvgPool2DParam
   std::vector<std::string> backend = {"acl_cl", "acl_neon", "cpu", "gpu_cl"};
 };
 
-class AveragePool2DVariation : public GenModelTest,
-                               public ::testing::WithParamInterface<AvgPool2DParam>
+TEST_F(GenModelTest, OneOp_AvgPool2D)
 {
-};
-
-TEST_P(AveragePool2DVariation, Test)
-{
-  auto &param = GetParam();
-  CircleGen cgen;
-
-  int in = cgen.addTensor({param.input_shape, param.type.data_type}, param.type.scale,
-                          param.type.zero_point);
-  int out = cgen.addTensor({param.output_shape, param.type.data_type}, param.type.scale,
-                           param.type.zero_point);
-  cgen.addOperatorAveragePool2D({{in}, {out}}, circle::Padding_SAME, param.param.stride_w,
-                                param.param.stride_h, param.param.filter_w, param.param.filter_h,
-                                circle::ActivationFunctionType_NONE);
-  cgen.setInputsAndOutputs({in}, {out});
-
-  _context = std::make_unique<GenModelTestContext>(cgen.finish());
-  _context->addTestCase(param.tcd);
-  _context->setBackends(param.backend);
-
-  SUCCEED();
-}
-
-// Test with different input type and value
-INSTANTIATE_TEST_CASE_P(
-  GenModelTest, AveragePool2DVariation,
-  ::testing::Values(
+  static const std::vector<AvgPool2DParam> examples{
     // float data
     AvgPool2DParam{
       uniformTCD<float>({{1, 3, 2, 4}}, {{2.5}}), {1, 2, 2, 1}, {1, 1, 1, 1}, {2, 2, 2, 2}},
@@ -106,7 +79,28 @@ INSTANTIATE_TEST_CASE_P(
       {1, 1, 2, 2},
       {18, 18, 18, 18},
       {circle::TensorType::TensorType_INT8, 2.0, -1},
-      {"cpu"}}));
+      {"cpu"}}};
+
+  for (auto example : examples)
+  {
+    CircleGen cgen;
+
+    int in = cgen.addTensor({example.input_shape, example.type.data_type}, example.type.scale,
+                            example.type.zero_point);
+    int out = cgen.addTensor({example.output_shape, example.type.data_type}, example.type.scale,
+                             example.type.zero_point);
+    cgen.addOperatorAveragePool2D({{in}, {out}}, circle::Padding_SAME, example.param.stride_w,
+                                  example.param.stride_h, example.param.filter_w,
+                                  example.param.filter_h, circle::ActivationFunctionType_NONE);
+    cgen.setInputsAndOutputs({in}, {out});
+
+    _context = std::make_unique<GenModelTestContext>(cgen.finish());
+    _context->addTestCase(example.tcd);
+    _context->setBackends(example.backend);
+  }
+
+  SUCCEED();
+}
 
 TEST_F(GenModelTest, neg_OneOp_AvgPool2D_3DInput)
 {
