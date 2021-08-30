@@ -16,58 +16,47 @@
 
 #include "GenModelTest.h"
 
-struct DepthToSpaceVariationParam
-{
-  TestCaseData tcd;
-  circle::TensorType type = circle::TensorType::TensorType_FLOAT32;
-  float scale = 0.0f;
-  int64_t zero_point = 0;
-};
-
-class DepthToSpaceVariation : public GenModelTest,
-                              public ::testing::WithParamInterface<DepthToSpaceVariationParam>
-{
-};
-
-INSTANTIATE_TEST_CASE_P(
-  GenModelTest, DepthToSpaceVariation,
-  ::testing::Values(
-    // Float
-    DepthToSpaceVariationParam{
-      uniformTCD<float>({{1, 2, 3, 4, 5, 6, 7, 8}}, {{1, 2, 5, 6, 3, 4, 7, 8}})},
-    // Int32
-    DepthToSpaceVariationParam{
-      uniformTCD<int32_t>({{1, 2, 3, 4, 5, 6, 7, 8}}, {{1, 2, 5, 6, 3, 4, 7, 8}}),
-      circle::TensorType::TensorType_INT32},
-    // Int64
-    DepthToSpaceVariationParam{
-      uniformTCD<int64_t>({{1, 2, 3, 4, 5, 6, 7, 8}}, {{1, 2, 5, 6, 3, 4, 7, 8}}),
-      circle::TensorType::TensorType_INT64},
-    // Uint8
-    DepthToSpaceVariationParam{
-      uniformTCD<uint8_t>({{1, 2, 3, 4, 5, 6, 7, 8}}, {{1, 2, 5, 6, 3, 4, 7, 8}}),
-      circle::TensorType::TensorType_UINT8, 1.0f, -2},
-    // Int8
-    DepthToSpaceVariationParam{
-      uniformTCD<int8_t>({{1, 2, 3, 4, 5, 6, 7, 8}}, {{1, 2, 5, 6, 3, 4, 7, 8}}),
-      circle::TensorType::TensorType_INT8, 1.0f, -2}));
-
 // Input shape: {1, 1, 2, 4}
 // Block size: 2
 // Output shape: {1, 2, 4, 1}
-TEST_P(DepthToSpaceVariation, Test)
+TEST_F(GenModelTest, OneOp_DepthToSpace)
 {
-  auto &param = GetParam();
+  struct DepthToSpaceExample
+  {
+    TestCaseData tcd;
+    circle::TensorType type = circle::TensorType::TensorType_FLOAT32;
+    float scale = 0.0f;
+    int64_t zero_point = 0;
+  };
 
-  CircleGen cgen;
-  int in = cgen.addTensor({{1, 1, 2, 4}, param.type}, param.scale, param.zero_point);
-  int out = cgen.addTensor({{1, 2, 4, 1}, param.type}, param.scale, param.zero_point);
-  cgen.addOperatorDepthToSpace({{in}, {out}}, 2);
-  cgen.setInputsAndOutputs({in}, {out});
+  static const std::vector<DepthToSpaceExample> examples{
+    // Float
+    DepthToSpaceExample{uniformTCD<float>({{1, 2, 3, 4, 5, 6, 7, 8}}, {{1, 2, 5, 6, 3, 4, 7, 8}})},
+    // Int32
+    DepthToSpaceExample{uniformTCD<int32_t>({{1, 2, 3, 4, 5, 6, 7, 8}}, {{1, 2, 5, 6, 3, 4, 7, 8}}),
+                        circle::TensorType::TensorType_INT32},
+    // Int64
+    DepthToSpaceExample{uniformTCD<int64_t>({{1, 2, 3, 4, 5, 6, 7, 8}}, {{1, 2, 5, 6, 3, 4, 7, 8}}),
+                        circle::TensorType::TensorType_INT64},
+    // Uint8
+    DepthToSpaceExample{uniformTCD<uint8_t>({{1, 2, 3, 4, 5, 6, 7, 8}}, {{1, 2, 5, 6, 3, 4, 7, 8}}),
+                        circle::TensorType::TensorType_UINT8, 1.0f, -2},
+    // Int8
+    DepthToSpaceExample{uniformTCD<int8_t>({{1, 2, 3, 4, 5, 6, 7, 8}}, {{1, 2, 5, 6, 3, 4, 7, 8}}),
+                        circle::TensorType::TensorType_INT8, 1.0f, -2}};
 
-  _context = std::make_unique<GenModelTestContext>(cgen.finish());
-  _context->addTestCase(param.tcd);
-  _context->setBackends({"acl_cl", "acl_neon", "cpu"});
+  for (auto example : examples)
+  {
+    CircleGen cgen;
+    int in = cgen.addTensor({{1, 1, 2, 4}, example.type}, example.scale, example.zero_point);
+    int out = cgen.addTensor({{1, 2, 4, 1}, example.type}, example.scale, example.zero_point);
+    cgen.addOperatorDepthToSpace({{in}, {out}}, 2);
+    cgen.setInputsAndOutputs({in}, {out});
+
+    _context = std::make_unique<GenModelTestContext>(cgen.finish());
+    _context->addTestCase(example.tcd);
+    _context->setBackends({"acl_cl", "acl_neon", "cpu"});
+  }
 
   SUCCEED();
 }
