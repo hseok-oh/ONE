@@ -79,20 +79,6 @@ function check_newline() {
   # Transform to array
   FILES_TO_CHECK_CR=($FILES_TO_CHECK_CR)
 
-  # Check all files (CMakeLists.txt, *.cl, ... not only for C++, Python)
-  if [[ ${#FILES_TO_CHECK_CR} -ne 0 ]]; then
-    CRCHECK=$(file ${FILES_TO_CHECK_CR} | grep 'with CR')
-  else
-    return
-  fi
-  FILES_TO_FIX=($(echo "$CRCHECK" | grep "with CRLF line" | cut -d':' -f1))
-  for f in ${FILES_TO_FIX[@]}; do
-    tr -d '\r' < $f > $f.fixed && cat $f.fixed > $f && rm $f.fixed
-  done
-  FILES_TO_FIX=($(echo "${CRCHECK}" | grep "with CR line" | cut -d':' -f1))
-  for f in ${FILES_TO_FIX[@]}; do
-    tr '\r' '\n' < $f > $f.fixed && cat $f.fixed > $f && rm $f.fixed
-  done
   # Check no new line at end of file
   for f in ${FILES_TO_CHECK_CR[@]}; do
     if diff /dev/null "$f" | tail -1 | grep '^\\ No newline' > /dev/null; then
@@ -114,10 +100,7 @@ function check_permission() {
     return
   fi
   for FILE_TO_CHECK in ${FILES_TO_CHECK_PERMISSION[@]}; do
-    RESULT=$(stat -c '%A' ${FILE_TO_CHECK} | grep 'x')
-    if [ "${RESULT}" != "" ]; then
-      chmod a-x ${FILE_TO_CHECK}
-    fi
+    chmod a-x ${FILE_TO_CHECK}
   done
 }
 
