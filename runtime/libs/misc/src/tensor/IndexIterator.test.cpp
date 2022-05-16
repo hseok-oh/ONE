@@ -48,6 +48,7 @@ TEST(MiscIndexIteratorTest, iterate)
   };
 
   ASSERT_TRUE(std::all_of(array.begin(), array.end(), [](int num) { return num == 1; }));
+  SUCCEED();
 }
 
 TEST(MiscIndexIteratorTest, neg_zero_rank_shape)
