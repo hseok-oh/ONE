@@ -76,6 +76,9 @@ for i in "$@" ; do
         focal)
             __LinuxCodeName=focal
             ;;
+        jammy)
+            __LinuxCodeName=jammy
+            ;;
         --setproxy*)
             proxyip="${i#*=}"
             __Apt="Acquire::http::proxy \"http://$proxyip/\";\n"

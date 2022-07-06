@@ -21,6 +21,8 @@
 #include <ruy/context.h>     // from @ruy
 #include <ruy/thread_pool.h> // from @ruy
 
+#include <stdexcept>
+
 namespace nnfw
 {
 namespace cker
@@ -34,6 +36,10 @@ template <typename TaskType>
 void Execute(int tasks_count, TaskType *tasks, ruy::Context *ruy_context)
 {
   assert(tasks_count <= ruy_context->max_num_threads());
+  if (ruy_context == nullptr)
+  {
+    throw std::runtime_error("CpuBackendThreadpool.h: ruy::Context is null");
+  }
   ruy_context->mutable_thread_pool()->Execute(tasks_count, tasks);
 }
 
