@@ -39,10 +39,23 @@ void ConstantInsertionPass::callback(const ir::OperationIndex &node_index, ir::I
   {
     auto &object = _graph.operands().at(input);
 
-    const auto key = ReplaceKey{input, factor};
-    if (object.isConstant() && (object.getUses().size() >= 2 ||
-                                _replace_operands_map.find(key) != _replace_operands_map.end()))
+    if (!object.isConstant() || object.getUses().size() < 2)
+      continue;
+
+    if (_keep_operands_map.find(input) == _keep_operands_map.end())
     {
+      // Register map to use keep use origin operand
+      _keep_operands_map.emplace(input, factor);
+    }
+    else if (_keep_operands_map.at(input) == factor)
+    {
+      // Keep use origin operand
+      continue;
+    }
+    else
+    {
+      // Use new operand
+      const auto key = ReplaceKey{input, factor};
       if (_replace_operands_map.count(key) == 0)
       {
         ir::Operand new_object(object);
@@ -68,13 +81,8 @@ void ConstantInsertionPass::callback(const ir::OperationIndex &node_index, ir::I
       assert(!object.getDef().valid());
       object.removeUse(node_index);
 
-      // Remove origin operand
-      if (object.getUses().size() == 0)
-      {
-        _graph.removeOperand(input);
-        VERBOSE(ConstInsertPass) << "Original operand " << input << " removed - no uses"
-                                 << std::endl;
-      }
+      // Remain uses by _keep_operands_map
+      assert(object.getUses().size() != 0);
     }
   }
 
