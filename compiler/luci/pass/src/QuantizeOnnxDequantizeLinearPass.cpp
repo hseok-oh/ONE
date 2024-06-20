@@ -78,7 +78,7 @@ int32_t get_axis(const luci::CircleCustom *node)
 {
   assert(node); // FIX_CALLER_UNLESS
 
-  const auto custom_options = node->custom_options();
+  const auto &custom_options = node->custom_options();
   const auto map = flexbuffers::GetRoot(custom_options).AsMap();
 
   return map["axis"].IsNull() ? 0 : map["axis"].AsInt32();

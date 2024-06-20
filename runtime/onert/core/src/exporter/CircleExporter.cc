@@ -145,7 +145,8 @@ void CircleExporter::finish()
   builder.Finish(::circle::Model::Pack(builder, _model.get()), ::circle::ModelIdentifier());
 
   std::ofstream dst(_path.c_str(), std::ios::binary);
-  dst.write(reinterpret_cast<const char *>(builder.GetBufferPointer()), builder.GetSize());
+  dst.write(reinterpret_cast<const char *>(builder.GetBufferPointer()),
+            static_cast<ptrdiff_t>(builder.GetSize()));
   dst.close();
 }
 } // namespace exporter

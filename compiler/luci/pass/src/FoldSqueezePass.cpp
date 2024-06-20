@@ -41,7 +41,7 @@ bool fold_squeeze(luci::CircleSqueeze *squeeze)
       return false;
   }
 
-  const auto squeeze_dims = squeeze->squeeze_dims();
+  const auto &squeeze_dims = squeeze->squeeze_dims();
   uint32_t num_squeeze_dims = squeeze_dims.size();
   std::vector<bool> should_squeeze(input_rank, false);
   uint32_t num_squeezed_dims = 0;
