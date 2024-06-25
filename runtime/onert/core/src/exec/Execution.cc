@@ -19,6 +19,9 @@
 #include "ir/DataType.h"
 #include "train/TrainableExecutors.h"
 #include "util/logging.h"
+#include "IPermuteFunction.h"
+#include "../backend/builtin/UserTensor.h"
+#include "../backend/builtin/EdgeTensor.h"
 
 namespace onert
 {
@@ -139,7 +142,98 @@ void Execution::execute()
 {
   VERBOSE(Execution) << "Start execution" << std::endl;
 
+  // TODO Remove this class
+  class PermuteLayer : public exec::IPermuteFunction
+  {
+  public:
+    PermuteLayer(const std::vector<backend::ITensor *> &inputs,
+                 const std::vector<backend::ITensor *> &outputs)
+    {
+      assert(inputs.size() == outputs.size());
+      _src_tensors = inputs;
+      _dst_tensors = outputs;
+    }
+    virtual ~PermuteLayer() {}
+    void optimize() override {}
+  };
+
+  // Create I/O Tensors for quant/dequant
+  std::vector<std::unique_ptr<backend::builtin::UserTensor>> tensors;
+  std::vector<std::unique_ptr<backend::builtin::EdgeTensor>> qtensors;
+  std::vector<backend::ITensor *> input_tensors;
+  std::vector<backend::ITensor *> input_qtensors;
+  std::vector<backend::ITensor *> output_tensors;
+  std::vector<backend::ITensor *> output_qtensors;
+
+  for (uint32_t i = 0; i < _executors->inputSize(); ++i)
+  {
+    auto input_info = _ctx.desc.inputs[i]->info;
+    auto user_type = input_info.typeInfo().type();
+    auto &model_info = _executors->inputInfo(ir::IOIndex{i}).typeInfo();
+    auto model_type = model_info.type();
+    if (user_type != model_type && user_type == ir::DataType::FLOAT32)
+    {
+      tensors.emplace_back(std::make_unique<backend::builtin::UserTensor>(
+        input_info, _ctx.desc.inputs[i]->layout,
+        reinterpret_cast<const uint8_t *>(_ctx.desc.inputs[i]->buffer), _ctx.desc.inputs[i]->size));
+
+      auto quantized_info = input_info;
+      quantized_info.typeInfo(model_info);
+      qtensors.emplace_back(std::make_unique<backend::builtin::EdgeTensor>(
+        quantized_info, _ctx.desc.inputs[i]->layout));
+      qtensors.back()->allocate_buffer();
+
+      input_tensors.push_back(tensors.back().get());
+      input_qtensors.push_back(qtensors.back().get());
+      _ctx.desc.inputs[i]->info = quantized_info;
+      _ctx.desc.inputs[i]->buffer = reinterpret_cast<void *>(qtensors.back()->buffer());
+      _ctx.desc.inputs[i]->size = qtensors.back()->total_size();
+    }
+  }
+
+  for (uint32_t i = 0; i < _executors->outputSize(); ++i)
+  {
+    auto output_info = _ctx.desc.outputs[i]->info;
+    auto user_type = output_info.typeInfo().type();
+    auto &model_info = _executors->outputInfo(ir::IOIndex{i}).typeInfo();
+    auto model_type = model_info.type();
+    if (user_type != model_type && user_type == ir::DataType::FLOAT32)
+    {
+      tensors.emplace_back(std::make_unique<backend::builtin::UserTensor>(
+        output_info, _ctx.desc.outputs[i]->layout,
+        reinterpret_cast<uint8_t *>(_ctx.desc.outputs[i]->buffer), _ctx.desc.outputs[i]->size));
+
+      auto quantized_info = output_info;
+      quantized_info.typeInfo(model_info);
+      qtensors.emplace_back(std::make_unique<backend::builtin::EdgeTensor>(
+        quantized_info, _ctx.desc.outputs[i]->layout));
+      qtensors.back()->allocate_buffer();
+
+      output_tensors.push_back(tensors.back().get());
+      output_qtensors.push_back(qtensors.back().get());
+      _ctx.desc.outputs[i]->info = quantized_info;
+      _ctx.desc.outputs[i]->buffer = reinterpret_cast<void *>(qtensors.back()->buffer());
+      _ctx.desc.outputs[i]->size = qtensors.back()->total_size();
+    }
+  }
+
+  // Create Input Quant layers if need
+  if (input_tensors.size() != 0)
+  {
+    auto input_layer = PermuteLayer(input_tensors, input_qtensors);
+    input_layer.prepare();
+    input_layer.run();
+  }
+
   _executors->execute(_ctx);
+
+  // Create Output Dequant layers if need
+  if (output_tensors.size() != 0)
+  {
+    auto output_layer = PermuteLayer(output_qtensors, output_tensors);
+    output_layer.prepare();
+    output_layer.run();
+  }
 
   finished = true;
 
