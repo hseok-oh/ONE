@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef __ONERT_BACKEND_BUILTIN_IO_TENSOR_H__
-#define __ONERT_BACKEND_BUILTIN_IO_TENSOR_H__
+#ifndef __ONERT_BACKEND_IO_TENSOR_H__
+#define __ONERT_BACKEND_IO_TENSOR_H__
 
-#include "backend/IPortableTensor.h"
 #include "UserTensor.h"
+#include "backend/IPortableTensor.h"
 
 namespace onert
 {
@@ -85,9 +85,9 @@ public:
 
 private:
   // IPortableTensor's info is not used
-  bool _is_dynamic{false};           // < Represent dynamic by updated model input shape
+  bool _is_dynamic{false};           //< Represent dynamic by updated model input shape
   IPortableTensor *_tensor{nullptr}; //< The actual tensor that is indirected
-  // Before 1st inference, "_orig" has original tensor's info with nullptr buffer
+  // Before 1st inference, "_orig" has UserTensor type original tensor's info with nullptr buffer
   // After 1st setTensor(tensor) call, "_orig" has latest shape info with nullptr buffer
   // We can use IPortableTensor's info for tensor info cache, but we use nullptr
   // UserTensor for simple method implementation
@@ -98,4 +98,4 @@ private:
 } // namespace backend
 } // namespace onert
 
-#endif // __ONERT_BACKEND_BUILTIN_IO_TENSOR_H__
+#endif // __ONERT_BACKEND_IO_TENSOR_H__

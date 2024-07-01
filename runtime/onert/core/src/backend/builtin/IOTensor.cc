@@ -15,6 +15,7 @@
  */
 
 #include "IOTensor.h"
+#include "UserTensor.h"
 
 #include <assert.h>
 
