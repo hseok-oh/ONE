@@ -39,7 +39,7 @@ ExecutorBase::ExecutorBase(std::unique_ptr<compiler::LoweredGraph> &&lowered_gra
     {
       backend::ITensor *tensor = tensor_regs.getITensor(ind);
       assert(tensor != nullptr);
-      auto io_tensor = nnfw::misc::polymorphic_downcast<backend::builtin::IOTensor *>(tensor);
+      auto io_tensor = nnfw::misc::polymorphic_downcast<backend::IOTensor *>(tensor);
       tensors.push_back(io_tensor);
     }
   };

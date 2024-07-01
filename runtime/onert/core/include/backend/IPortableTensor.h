@@ -41,8 +41,16 @@ public:
   IPortableTensor(const ir::OperandInfo &info) : _info(info) {}
 
   virtual ~IPortableTensor();
+
+public:
+  // New virtual methods for IPortableTensor
   virtual const ir::Sparsity *sparsity() const { return nullptr; }
   virtual const ir::OperandInfo &get_info() const { return _info; }
+
+  // Overwride methods for IPortableTensor
+  size_t total_size() const override { return _info.total_size(); }
+  size_t calcOffset(const ir::Coordinates &coords) const override;
+  ir::DataType data_type() const override { return _info.typeInfo().type(); }
   float data_scale() const override { return _info.typeInfo().scale(); }
   int32_t data_zero_point() const override { return _info.typeInfo().zero_point(); }
   const std::vector<float> &data_scales() const override { return _info.typeInfo().scales(); }
@@ -50,8 +58,11 @@ public:
   {
     return _info.typeInfo().zero_points();
   }
+  bool is_constant() const override { return _info.isConstant(); }
+  bool is_dynamic() const override { return _info.isDynamic(); }
+  ir::Shape getShape() const override { return _info.shape(); }
 
-public:
+  // Finailized methods for IPortableTensor
   bool has_padding() const final { return false; }
   void access(const std::function<void(ITensor &tensor)> &fn) final { fn(*this); }
 

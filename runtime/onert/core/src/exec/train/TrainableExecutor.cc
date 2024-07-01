@@ -18,6 +18,7 @@
 #ifdef RUY_PROFILER
 #include "ruy/profiler/instrumentation.h"
 #endif
+#include "../../backend/builtin/UserTensor.h"
 
 #include <misc/polymorphic_downcast.h>
 
@@ -48,7 +49,7 @@ TrainableExecutor::TrainableExecutor(
     {
       backend::ITensor *tensor = _tensor_regs.getITensor(ind);
       assert(tensor != nullptr);
-      auto io_tensor = nnfw::misc::polymorphic_downcast<backend::builtin::IOTensor *>(tensor);
+      auto io_tensor = nnfw::misc::polymorphic_downcast<backend::IOTensor *>(tensor);
       tensors.push_back(io_tensor);
     }
   };

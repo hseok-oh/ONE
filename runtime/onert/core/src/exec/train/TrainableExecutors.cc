@@ -16,8 +16,6 @@
 
 #include "TrainableExecutors.h"
 
-#include "../../backend/builtin/IOTensor.h"
-
 #include <misc/polymorphic_downcast.h>
 
 namespace onert

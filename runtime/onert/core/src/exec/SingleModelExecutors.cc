@@ -15,9 +15,10 @@
  */
 
 #include "SingleModelExecutors.h"
-#include <array>
 
-#include "../backend/builtin/IOTensor.h"
+#include "../backend/builtin/UserTensor.h"
+
+#include <array>
 
 namespace onert
 {

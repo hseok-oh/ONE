@@ -21,9 +21,10 @@
 #ifndef __ONERT_EXEC_I_EXECUTOR_H__
 #define __ONERT_EXEC_I_EXECUTOR_H__
 
-#include "ir/Graph.h"
 #include "IFunction.h"
 #include "ExecutionContext.h"
+#include "backend/IOTensor.h"
+#include "ir/Graph.h"
 #include "ir/Index.h"
 #include "ir/OperationIndexMap.h"
 
@@ -31,17 +32,6 @@
 #include <memory>
 #include <unordered_map>
 
-namespace onert
-{
-namespace backend
-{
-class IPortableTensor;
-namespace builtin
-{
-class IOTensor;
-}
-} // namespace backend
-} // namespace onert
 namespace onert
 {
 namespace exec
@@ -90,14 +80,14 @@ struct IExecutor
    *
    * @return Vector of @c IOTensor
    */
-  virtual const std::vector<backend::builtin::IOTensor *> &getInputTensors() const = 0;
+  virtual const std::vector<backend::IOTensor *> &getInputTensors() const = 0;
 
   /**
    * @brief Get output tensor objects
    *
    * @return Vector of @c IOTensor
    */
-  virtual const std::vector<backend::builtin::IOTensor *> &getOutputTensors() const = 0;
+  virtual const std::vector<backend::IOTensor *> &getOutputTensors() const = 0;
 
   /**
    * @brief   Return current execution configuration

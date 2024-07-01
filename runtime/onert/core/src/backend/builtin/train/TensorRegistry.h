@@ -19,7 +19,7 @@
 
 #include <backend/train/ITensorRegistry.h>
 
-#include "../IOTensor.h"
+#include "backend/IOTensor.h"
 #include "../Tensor.h"
 #include "Tensor.h"
 

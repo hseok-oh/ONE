@@ -18,7 +18,7 @@
 #define __ONERT_EXEC_EXECUTOR_BASE_H__
 
 #include "ExecutionObservee.h"
-#include "../backend/builtin/IOTensor.h"
+#include "backend/IOTensor.h"
 #include "../compiler/TensorRegistries.h"
 
 #include "compiler/LoweredGraph.h"
@@ -67,12 +67,12 @@ public:
 
   void addObserver(std::unique_ptr<IExecutionObserver> ref) { _observers.add(std::move(ref)); };
 
-  const std::vector<backend::builtin::IOTensor *> &getInputTensors() const override
+  const std::vector<backend::IOTensor *> &getInputTensors() const override
   {
     return _input_tensors;
   }
 
-  const std::vector<backend::builtin::IOTensor *> &getOutputTensors() const override
+  const std::vector<backend::IOTensor *> &getOutputTensors() const override
   {
     return _output_tensors;
   }
@@ -92,8 +92,8 @@ protected:
   std::unique_ptr<compiler::LoweredGraph> _lowered_graph;
   backend::BackendContexts _backend_contexts;
   const ir::Graph &_graph;
-  std::vector<backend::builtin::IOTensor *> _input_tensors;
-  std::vector<backend::builtin::IOTensor *> _output_tensors;
+  std::vector<backend::IOTensor *> _input_tensors;
+  std::vector<backend::IOTensor *> _output_tensors;
   std::mutex _mutex;
   const util::TracingCtx *_tracing_ctx;
   /**

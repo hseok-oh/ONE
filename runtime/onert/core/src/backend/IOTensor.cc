@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#include "IOTensor.h"
+#include "backend/IOTensor.h"
+
+#include "builtin/UserTensor.h"
 
 #include <assert.h>
 
 namespace onert
 {
 namespace backend
-{
-namespace builtin
 {
 
 // `dynamic_cast` not working across library boundaries on NDK
@@ -31,7 +31,7 @@ IOTensor::~IOTensor() {}
 
 IOTensor::IOTensor(const ir::OperandInfo &info, ir::Layout layout)
   : IPortableTensor{info}, _is_dynamic{false}, _tensor{nullptr},
-    _orig{std::make_unique<UserTensor>(info, layout, (uint8_t *)nullptr, 0)}
+    _orig{std::make_unique<builtin::UserTensor>(info, layout, (uint8_t *)nullptr, 0)}
 {
   _tensor = _orig.get();
 }
@@ -53,6 +53,5 @@ void IOTensor::setTensor(IPortableTensor *tensor)
     _is_dynamic = false;
 }
 
-} // namespace builtin
 } // namespace backend
 } // namespace onert

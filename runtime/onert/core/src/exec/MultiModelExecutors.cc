@@ -16,7 +16,7 @@
 
 #include "MultiModelExecutors.h"
 
-#include "../backend/builtin/IOTensor.h"
+#include "../backend/builtin/UserTensor.h"
 
 namespace
 {
@@ -59,51 +59,6 @@ namespace onert
 {
 namespace exec
 {
-
-class MultiModelExecutors::EdgeTensor : public backend::builtin::IOTensor
-{
-public:
-  EdgeTensor(const ir::OperandInfo &info, ir::Layout layout)
-    : backend::builtin::IOTensor(info, layout), _buffer{nullptr}, _ref_count{0}
-  {
-  }
-  ~EdgeTensor() = default;
-
-  void allocate_buffer()
-  {
-    const auto total_size = orig_info().total_size();
-    _buffer = std::make_unique<uint8_t[]>(total_size);
-    _ref_count = 1;
-
-    // NOTE Executor's inputs/outputs are always IPortableTensor. If backend of inputs/outputs
-    //      is using tensor that does not inherit IPortableTensor, Permute operation is added
-    //      and all inputs/outputs become IPortableTensor at compile stage.
-    //      This allows user's buffers to be set to inputs/outputs of executors.
-    _user_tensor = std::make_unique<backend::builtin::UserTensor>(orig_info(), orig_layout(),
-                                                                  _buffer.get(), total_size);
-    // setUserTensor(_buffer.get(), total_size);
-    setTensor(_user_tensor.get());
-  }
-
-  void increase_ref() { _ref_count++; }
-
-  void decrease_ref()
-  {
-    assert(_ref_count > 0);
-    _ref_count--;
-    if (_ref_count == 0)
-    {
-      _buffer.reset();
-      _user_tensor = nullptr;
-      // setUserTensor(nullptr, orig_info().total_size());
-    }
-  }
-
-private:
-  std::unique_ptr<backend::builtin::UserTensor> _user_tensor;
-  std::unique_ptr<uint8_t[]> _buffer;
-  int32_t _ref_count;
-};
 
 void MultiModelExecutors::emplace(const ir::ModelIndex &model_index,
                                   const ir::SubgraphIndex &subg_index,
@@ -225,7 +180,8 @@ void MultiModelExecutors::createEdgeQuantLayers()
 
     const auto &from_info = from_tensor->orig_info();
     const auto from_layout = from_tensor->orig_layout();
-    _edge_tensors[from_iodesc] = std::make_unique<EdgeTensor>(from_info, from_layout);
+    _edge_tensors[from_iodesc] =
+      std::make_unique<backend::builtin::EdgeTensor>(from_info, from_layout);
   }
 
   // Append type-aware quantization layer for edges between executors
@@ -264,7 +220,8 @@ void MultiModelExecutors::createEdgeQuantLayers()
             const auto to_layout = to_tensor->orig_layout();
             inputs.emplace_back(from_tensor);
 
-            auto type_aware_quant_tensor = std::make_unique<EdgeTensor>(to_info, to_layout);
+            auto type_aware_quant_tensor =
+              std::make_unique<backend::builtin::EdgeTensor>(to_info, to_layout);
             outputs.emplace_back(type_aware_quant_tensor.get());
 
             _edge_quant_tensors[to_iodesc] = std::move(type_aware_quant_tensor);
@@ -295,7 +252,7 @@ void MultiModelExecutors::CreatePkgIOTensors(const IODescription &desc)
       throw std::runtime_error{"Cannot find multi model input index"};
     auto input_desc = desc.inputs[input_pkg_index].get();
     _pkg_input_tensors[pkg_input] =
-      std::make_unique<backend::builtin::IOTensor>(input_desc->info, input_desc->layout);
+      std::make_unique<backend::IOTensor>(input_desc->info, input_desc->layout);
   }
 
   for (const auto &pkg_output : _model_edges->pkg_outputs)
@@ -310,7 +267,7 @@ void MultiModelExecutors::CreatePkgIOTensors(const IODescription &desc)
       throw std::runtime_error{"Cannot find multi model output index"};
     auto output_desc = desc.outputs[output_pkg_index].get();
     _pkg_output_tensors[pkg_output] =
-      std::make_unique<backend::builtin::IOTensor>(output_desc->info, output_desc->layout);
+      std::make_unique<backend::IOTensor>(output_desc->info, output_desc->layout);
   }
 }
 
@@ -352,7 +309,8 @@ void MultiModelExecutors::createPkgIOQuantLayers(const IODescription &desc)
       if (input_desc->info.typeInfo().type() != input_tensor->orig_info().typeInfo().type())
       {
         const auto orig_layout = input_tensor->orig_layout();
-        auto pkg_input_edge_tensor = std::make_unique<EdgeTensor>(orig_info, orig_layout);
+        auto pkg_input_edge_tensor =
+          std::make_unique<backend::builtin::EdgeTensor>(orig_info, orig_layout);
         _pkg_input_quant_tensors[pkg_input] = std::move(pkg_input_edge_tensor);
 
         // Append type-aware quantization layer's inputs/outputs
@@ -395,7 +353,8 @@ void MultiModelExecutors::createPkgIOQuantLayers(const IODescription &desc)
       if (output_desc->info.typeInfo().type() != output_tensor->orig_info().typeInfo().type())
       {
         const auto orig_layout = output_tensor->orig_layout();
-        auto pkg_output_edge_tensor = std::make_unique<EdgeTensor>(orig_info, orig_layout);
+        auto pkg_output_edge_tensor =
+          std::make_unique<backend::builtin::EdgeTensor>(orig_info, orig_layout);
         _pkg_output_quant_tensors[pkg_output] = std::move(pkg_output_edge_tensor);
 
         // Append type-aware quantization layer's inputs/outputs

@@ -14,17 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef __ONERT_BACKEND_BUILTIN_IO_TENSOR_H__
-#define __ONERT_BACKEND_BUILTIN_IO_TENSOR_H__
+#ifndef __ONERT_BACKEND_IO_TENSOR_H__
+#define __ONERT_BACKEND_IO_TENSOR_H__
 
-#include "backend/IPortableTensor.h"
-#include "UserTensor.h"
+#include "IPortableTensor.h"
 
 namespace onert
 {
 namespace backend
-{
-namespace builtin
 {
 
 /**
@@ -85,17 +82,57 @@ public:
 
 private:
   // IPortableTensor's info is not used
-  bool _is_dynamic{false};           // < Represent dynamic by updated model input shape
+  bool _is_dynamic{false};           //< Represent dynamic by updated model input shape
   IPortableTensor *_tensor{nullptr}; //< The actual tensor that is indirected
-  // Before 1st inference, "_orig" has original tensor's info with nullptr buffer
+  // Before 1st inference, "_orig" has UserTensor type original tensor's info with nullptr buffer
   // After 1st setTensor(tensor) call, "_orig" has latest shape info with nullptr buffer
   // We can use IPortableTensor's info for tensor info cache, but we use nullptr
   // UserTensor for simple method implementation
-  std::unique_ptr<UserTensor> _orig;
+  std::unique_ptr<IPortableTensor> _orig;
 };
 
-} // namespace builtin
+class EdgeTensor : public IPortableTensor
+{
+public:
+  EdgeTensor(const ir::OperandInfo &info, ir::Layout layout)
+    : IPortableTensor(info), _layout{layout}, _buffer{nullptr}, _ref_count{0}
+  {
+  }
+  ~EdgeTensor() = default;
+
+  uint8_t *buffer() const override { return _buffer.get(); }
+  ir::Layout layout() const override { return _layout; }
+  void set_dynamic() override { _info.setDynamic(); }
+  bool applyShape(const ir::Shape &new_shape) override;
+
+  void setShape(const ir::Shape &new_shape) override { _info.shape(new_shape); }
+
+  void allocate_buffer()
+  {
+    const auto total_size = get_info().total_size();
+    _buffer = std::make_unique<uint8_t[]>(total_size);
+    _ref_count = 1;
+  }
+
+  void increase_ref() { _ref_count++; }
+
+  void decrease_ref()
+  {
+    assert(_ref_count > 0);
+    _ref_count--;
+    if (_ref_count == 0)
+    {
+      _buffer.reset();
+    }
+  }
+
+private:
+  ir::Layout _layout;
+  std::unique_ptr<uint8_t[]> _buffer;
+  int32_t _ref_count;
+};
+
 } // namespace backend
 } // namespace onert
 
-#endif // __ONERT_BACKEND_BUILTIN_IO_TENSOR_H__
+#endif // __ONERT_BACKEND_IO_TENSOR_H__

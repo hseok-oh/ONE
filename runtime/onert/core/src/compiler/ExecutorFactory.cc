@@ -113,7 +113,7 @@ void initializeSubgraphIOTensors(compiler::ILoweredGraph &lowered_graph,
   for (auto &&ind : indices)
   {
     const auto &operand = lowered_graph.graph().operands().at(ind);
-    auto tensor = std::make_unique<backend::builtin::IOTensor>(
+    auto tensor = std::make_unique<backend::IOTensor>(
       operand.info(),
       ir::Layout::NHWC /* FIXME find operation for this operand and use frontend_layout */
     );
@@ -143,7 +143,7 @@ void initializeSubgraphIOTensors(compiler::ILoweredGraph &lowered_graph,
   for (auto &&ind : indices)
   {
     const auto &operand = lowered_graph.graph().operands().at(ind);
-    auto tensor = std::make_unique<backend::builtin::IOTensor>(
+    auto tensor = std::make_unique<backend::IOTensor>(
       operand.info(),
       ir::Layout::NHWC /* FIXME find operation for this operand and use frontend_layout */
     );

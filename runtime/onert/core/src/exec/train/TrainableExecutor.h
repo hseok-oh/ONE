@@ -73,12 +73,12 @@ public:
 
   void addObserver(std::unique_ptr<IExecutionObserver> ref) { _observers.add(std::move(ref)); };
 
-  const std::vector<backend::builtin::IOTensor *> &getInputTensors() const override
+  const std::vector<backend::IOTensor *> &getInputTensors() const override
   {
     return _input_tensors;
   }
 
-  const std::vector<backend::builtin::IOTensor *> &getOutputTensors() const override
+  const std::vector<backend::IOTensor *> &getOutputTensors() const override
   {
     return _output_tensors;
   }
@@ -107,8 +107,8 @@ private:
   backend::train::TrainableBackendContexts _backend_contexts;
   const ir::train::TrainableGraph &_trainable_graph;
   compiler::train::TensorRegistries _tensor_regs;
-  std::vector<backend::builtin::IOTensor *> _input_tensors;
-  std::vector<backend::builtin::IOTensor *> _output_tensors;
+  std::vector<backend::IOTensor *> _input_tensors;
+  std::vector<backend::IOTensor *> _output_tensors;
   std::mutex _mutex;
   const util::TracingCtx *_tracing_ctx;
   const ir::train::LossInfo _loss_info;
