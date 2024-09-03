@@ -98,7 +98,7 @@ MinMaxVectors MinMaxReader::readOP(uint32_t model_idx, uint32_t subg_idx, uint32
 
   MinMaxVectors mmv;
   float minmax[2];
-  const int64_t data_size = sizeof(float) * 2 + sizeof(uint32_t) * 3;
+  const uint32_t data_size = sizeof(float) * 2 + sizeof(uint32_t) * 3;
 
   // Check num_run overflow
   if (num_run > std::numeric_limits<uint32_t>::max() / data_size)
@@ -113,10 +113,10 @@ MinMaxVectors MinMaxReader::readOP(uint32_t model_idx, uint32_t subg_idx, uint32
     readMMFile(&num_input, sizeof(uint32_t), 1, file, "Cannot read num of inputs");
 
     // Check num_op overflow
-    if (num_op > std::numeric_limits<uint32_t>::max() / data_size / num_run)
+    if (num_op > std::numeric_limits<uint32_t>::max() / (data_size * num_run))
       throw std::runtime_error("num_op overflow");
     // Check num_input overflow
-    if (num_input > std::numeric_limits<uint32_t>::max() / data_size / num_run)
+    if (num_input > std::numeric_limits<uint32_t>::max() / (data_size * num_run))
       throw std::runtime_error("num_input overflow");
 
     // Find operation
@@ -175,7 +175,7 @@ MinMaxVectors MinMaxReader::readInput(uint32_t model_idx, uint32_t subg_idx,
 
   MinMaxVectors mmv;
   float minmax[2];
-  const int64_t data_size = sizeof(float) * 2 + sizeof(uint32_t) * 3;
+  const uint32_t data_size = sizeof(float) * 2 + sizeof(uint32_t) * 3;
 
   // Check num_run overflow
   if (num_run > std::numeric_limits<uint32_t>::max() / data_size)
@@ -190,10 +190,10 @@ MinMaxVectors MinMaxReader::readInput(uint32_t model_idx, uint32_t subg_idx,
     readMMFile(&num_input, sizeof(uint32_t), 1, file, "Cannot read num of inputs");
 
     // Check num_op overflow
-    if (num_op > std::numeric_limits<uint32_t>::max() / data_size / num_run)
+    if (num_op > std::numeric_limits<uint32_t>::max() / (data_size * num_run))
       throw std::runtime_error("num_op overflow");
     // Check num_input overflow
-    if (num_input > std::numeric_limits<uint32_t>::max() / data_size / num_run)
+    if (num_input > std::numeric_limits<uint32_t>::max() / (data_size * num_run))
       throw std::runtime_error("num_input overflow");
 
     // Skip operation minmax data

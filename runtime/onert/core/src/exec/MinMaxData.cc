@@ -18,6 +18,20 @@
 
 #include <iostream>
 
+namespace
+{
+
+void seekMMFile(FILE *fp, int64_t offset, int whence, const std::string &err_msg)
+{
+  if (std::fseek(fp, offset, whence) != 0)
+  {
+    std::fclose(fp);
+    throw std::runtime_error(err_msg);
+  }
+}
+
+} // namespace
+
 namespace onert
 {
 namespace exec
@@ -51,7 +65,7 @@ void RawMinMaxDumper::dump(const exec::IOMinMaxMap &input_minmax,
   else
   {
     // Check magic code and version
-    std::fseek(file, 0, SEEK_SET);
+    seekMMFile(file, 0, SEEK_SET, "MinMaxData: Fail to seek start");
     uint32_t read_magic_code = 0;
     uint32_t read_version = 0;
     bool rewrite = true;
@@ -83,11 +97,12 @@ void RawMinMaxDumper::dump(const exec::IOMinMaxMap &input_minmax,
   // TODO Verify file size
 
   // Overwrite run count
-  std::fseek(file, sizeof(MAGIC_CODE) + sizeof(VERSION), SEEK_SET);
+  seekMMFile(file, sizeof(MAGIC_CODE) + sizeof(VERSION), SEEK_SET,
+             "MinMaxData: Fail to seek running count");
   std::fwrite(&runs, sizeof(uint32_t), 1, file);
 
   // Go to end of file to append new data
-  std::fseek(file, 0, SEEK_END);
+  seekMMFile(file, 0, SEEK_END, "MinMaxData: Fail to seek end of current data");
 
   uint32_t input_count = input_minmax.size();
   uint32_t op_count = op_minmax.size();
