@@ -20,6 +20,9 @@
 #include "ir/Operands.h"
 #include "ir/Operations.h"
 
+#include <optional>
+#include <string>
+
 namespace onert::ir
 {
 
@@ -34,6 +37,7 @@ struct IGraph
   virtual IOIndex getOutputIndex(const std::string &name) const = 0;
   virtual const Operands &operands() const = 0;
   virtual const Operations &operations() const = 0;
+  virtual const std::optional<std::string> &signature() const = 0;
 
   // Methods that can change graph
   virtual void changeShape(const OperandIndex &index, const ir::Shape &new_shape) = 0;

@@ -38,6 +38,9 @@ using IOIndex = ::onert::util::Index<uint32_t, IOIndexTag>;
 struct SubgraphIndexTag;
 using SubgraphIndex = ::onert::util::Index<uint16_t, SubgraphIndexTag>;
 
+struct GraphIndexTag;
+using GraphIndex = ::onert::util::Index<uint32_t, GraphIndexTag>;
+
 struct ModelIndexTag;
 using ModelIndex = ::onert::util::Index<uint16_t, ModelIndexTag>;
 

@@ -18,6 +18,7 @@
 #define __ONERT_IR_GRAPH_H__
 
 #include <functional>
+#include <optional>
 #include <unordered_map>
 
 #include "ir/IGraph.h"
@@ -104,6 +105,7 @@ public:
   Operands &operands() { return _operands; } // TODO Remove this non-const accessor
   const Operations &operations() const override { return _operations; }
   Operations &operations() { return _operations; }
+  const std::optional<std::string> &signature() const override { return _signature; }
 
   // Topological sort
 public:
@@ -118,6 +120,13 @@ private:
   //       to use `std::string_view` with lookup functions in unordered containers
   std::unordered_map<std::string, IOIndex> _name_to_input;
   std::unordered_map<std::string, IOIndex> _name_to_output;
+  std::optional<ModelIndex> _model_index;   // Model Index in package.
+                                            // If not set, it means this graph is not in any model
+  std::optional<SubgraphIndex> _subg_index; // Subgraph Index in model.
+                                            // If not set, it means this graph is not in any model
+  std::optional<std::string> _signature;    // Signature of this graph.
+                                         // If not set, it means this graph does not have signature
+                                         // - unique entry point of the model or package
 };
 
 } // namespace onert::ir

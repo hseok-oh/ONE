@@ -168,6 +168,8 @@ public:
 private:
   std::shared_ptr<backend::custom::IKernelBuilder> _kernel_builder;
 
+  // Metadata support for training
+
 public:
   void add_metadata(const std::string &name, std::unique_ptr<const ir::Data> data)
   {
