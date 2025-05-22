@@ -122,6 +122,7 @@ public:
   const Operands &backward_operands() const { return _backward_operands; }
   OperandIndex getLossIndex(const IOIndex &pred_io_ind) const;
   const Graph &graph() const { return _graph; }
+  const std::optional<std::string> &signature() const override { return _graph.signature(); }
 
 public:
   const ITrainableOperation &operation(OperationIndex index) const;
